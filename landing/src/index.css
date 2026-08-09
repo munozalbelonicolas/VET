@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Veterinaria La Plata — Design Tokens
+   ============================================================ */
+
+@theme {
+  --color-primary: #4ECDC4;
+  --color-primary-dark: #3BAFA7;
+  --color-primary-light: #A8E6CF;
+  --color-primary-soft: #E8FAF6;
+
+  --color-accent: #FF8C42;
+  --color-accent-dark: #E67330;
+  --color-accent-light: #FFB380;
+  --color-accent-soft: #FFF0E5;
+
+  --color-bg-main: #FFFDF5;
+  --color-bg-card: #FFFFFF;
+
+  --color-text-dark: #2D3436;
+  --color-text-muted: #636E72;
+  --color-text-light: #B2BEC3;
+
+  --color-danger: #FF6B6B;
+  --color-success: #51CF66;
+  --color-warning: #FFD43B;
+
+  --font-nunito: 'Nunito', sans-serif;
+  --font-quicksand: 'Quicksand', sans-serif;
+}
+
+/* ============================================================
+   Global Styles
+   ============================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-nunito);
+  background-color: var(--color-bg-main);
+  color: var(--color-text-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-quicksand);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(78, 205, 196, 0.4); }
+  50% { box-shadow: 0 0 0 15px rgba(78, 205, 196, 0); }
+}
+
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-bounce-gentle {
+  animation: bounce-gentle 2s ease-in-out infinite;
+}
+
+/* Stagger delays */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-light);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
