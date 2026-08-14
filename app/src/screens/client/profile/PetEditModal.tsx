@@ -16,7 +16,7 @@ import { colors, fonts, fontSizes, spacing, borderRadius } from '../../../config
 import { Button, Input } from '../../../components/ui';
 import { Pet, PetSpecies, PetSex } from '../../../types';
 import { updatePet } from '../../../services/dataService';
-import { uploadImageBase64 } from '../../../services/storageService';
+import { uploadImageBase64, uploadImage } from '../../../services/storageService';
 import { useAuthStore } from '../../../store/authStore';
 
 interface PetEditModalProps {

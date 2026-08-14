@@ -15,7 +15,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Pet, Appointment, MedicalRecord, GroomingRecord } from '../types';
+import { Pet, Appointment, MedicalRecord, GroomingRecord, User } from '../types';
 
 // --- MOCK DATA FOR DEV & DEMO ---
 let MOCK_PETS: Pet[] = [
@@ -209,5 +209,21 @@ export async function updatePet(petId: string, data: Partial<Pet>): Promise<void
     if (index !== -1) {
       MOCK_PETS[index] = { ...MOCK_PETS[index], ...data };
     }
+  }
+}
+
+export async function updateUserProfile(
+  userId: string,
+  data: Partial<Pick<User, 'name' | 'phone' | 'avatarUrl'>>
+): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating user profile in Firestore:', error);
+    // Silently fail — mock mode doesn't persist profile changes
   }
 }

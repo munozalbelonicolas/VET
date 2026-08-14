@@ -18,7 +18,7 @@ import { colors, fonts, fontSizes, spacing, shadows } from '../../config/theme';
 import { Button, Input } from '../../components/ui';
 import { Pet, PetSpecies, PetSex } from '../../types';
 import { addPet } from '../../services/dataService';
-import { uploadImageBase64 } from '../../services/storageService';
+import { uploadImageBase64, uploadImage } from '../../services/storageService';
 import { useAuthStore } from '../../store/authStore';
 
 interface AddPetModalProps {
@@ -81,13 +81,12 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({ onClose, onPetAdded })
       let avatarUrl = '';
       if (imageBase64) {
         setUploadingImage(true);
-        // Create a temporary ID or use timestamp for the new pet image
-        const fileName = `pet-${user.id}-${Date.now()}.jpg`;
+        const fileName = `pet-${user?.id ?? 'guest'}-${Date.now()}.jpg`;
         avatarUrl = await uploadImageBase64(imageBase64, `pets/avatars/${fileName}`);
         setUploadingImage(false);
       } else if (imageUri) {
         setUploadingImage(true);
-        const fileName = `pet-${user.id}-${Date.now()}.jpg`;
+        const fileName = `pet-${user?.id ?? 'guest'}-${Date.now()}.jpg`;
         avatarUrl = await uploadImage(imageUri, `pets/avatars/${fileName}`);
         setUploadingImage(false);
       }

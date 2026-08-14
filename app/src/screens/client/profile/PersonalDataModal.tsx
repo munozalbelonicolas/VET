@@ -6,7 +6,7 @@ import { colors, fonts, fontSizes, spacing, borderRadius } from '../../../config
 import { Button } from '../../../components/ui';
 import { User } from '../../../types';
 import { updateUserProfile } from '../../../services/dataService';
-import { uploadImageBase64 } from '../../../services/storageService';
+import { uploadImageBase64, uploadImage } from '../../../services/storageService';
 import { useAuthStore } from '../../../store/authStore';
 
 interface PersonalDataModalProps {

@@ -13,7 +13,13 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+// GoogleSignin mockeado para Expo Go (módulo nativo no disponible en Expo Go)
+// Para usar Google Sign-In real, se necesita un development build
+const GoogleSignin = {
+  configure: (_config: any) => {},
+  hasPlayServices: async () => true,
+  signIn: async () => { throw new Error('Google Sign-In no disponible en Expo Go. Usá email/contraseña.'); },
+};
 import { colors, fonts, fontSizes, spacing, shadows } from '../../config/theme';
 import { Button, Input, Logo } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
