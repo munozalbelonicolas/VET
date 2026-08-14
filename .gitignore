@@ -13,3 +13,9 @@ web-build/
 .DS_Store
 *.log
 *.apk
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
