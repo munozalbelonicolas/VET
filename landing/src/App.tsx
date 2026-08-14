@@ -39,7 +39,7 @@ function Navbar() {
       scrolled ? 'bg-white/95 backdrop-blur-md shadow-lg' : 'bg-transparent'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-18">
+        <div className="flex items-center justify-between py-3 min-h-[80px]">
           <LogoFull />
 
           {/* Desktop */}
@@ -551,8 +551,8 @@ function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-3 mb-6">
-              <Logo size={40} />
+            <div className="flex items-center gap-3.5 mb-6">
+              <Logo size={60} />
               <div>
                 <div className="text-xs font-bold tracking-wider uppercase opacity-70">Veterinaria</div>
                 <div className="text-lg font-bold text-primary font-quicksand">La Plata</div>

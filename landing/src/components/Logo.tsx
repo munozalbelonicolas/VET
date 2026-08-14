@@ -3,7 +3,7 @@
 // ============================================================
 import logoImg from '../assets/images/Logo.png';
 
-export const Logo = ({ className = '', size = 48 }: { className?: string; size?: number }) => (
+export const Logo = ({ className = '', size = 72 }: { className?: string; size?: number }) => (
   <img
     src={logoImg}
     alt="Veterinaria La Plata Logo"
@@ -14,11 +14,11 @@ export const Logo = ({ className = '', size = 48 }: { className?: string; size?:
 );
 
 export const LogoFull = ({ className = '' }: { className?: string }) => (
-  <div className={`flex items-center gap-3 ${className}`}>
-    <Logo size={48} />
+  <div className={`flex items-center gap-3.5 ${className}`}>
+    <Logo size={72} />
     <div>
-      <div className="text-sm font-bold tracking-wider text-text-dark font-quicksand uppercase">Veterinaria</div>
-      <div className="text-xl font-bold text-primary font-quicksand -mt-1">La Plata</div>
+      <div className="text-base font-bold tracking-wider text-text-dark font-quicksand uppercase">Veterinaria</div>
+      <div className="text-2xl font-bold text-primary font-quicksand -mt-1">La Plata</div>
     </div>
   </div>
 );
