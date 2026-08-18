@@ -94,8 +94,9 @@ export const VetDashboardScreen: React.FC = () => {
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>Hola, {user?.name?.split(' ').pop() || 'Doctor'} 🩺</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.greeting}>Hola, {user?.name?.split(' ').pop() || 'Doctor'}</Text>
       <Text style={styles.date}>{new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
 
       <View style={styles.statsGrid}>
@@ -125,7 +126,8 @@ export const VetDashboardScreen: React.FC = () => {
       </Card>
 
       <Button title="Cerrar sesión" onPress={logout} variant="ghost" style={{ marginTop: spacing.xl }} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -157,8 +159,9 @@ export const GroomerDashboardScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>Hola, {user?.name?.split(' ')[0] || ''} ✂️</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.greeting}>Hola, {user?.name?.split(' ')[0] || ''}</Text>
       <Text style={styles.date}>{new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
 
       <Card variant="elevated" style={styles.menuCard} onPress={() => setCurrentView('hub')}>
@@ -170,7 +173,8 @@ export const GroomerDashboardScreen: React.FC = () => {
       </Card>
 
       <Button title="Cerrar sesión" onPress={logout} variant="ghost" style={{ marginTop: spacing.xl }} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -185,7 +189,11 @@ export const ReceptionistDashboardScreen: React.FC = () => {
       </View>
     );
   }
-  return <ReceptionistHubScreen />;
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
+      <ReceptionistHubScreen />
+    </SafeAreaView>
+  );
 };
 
 // --- Admin Dashboard ---
@@ -386,20 +394,21 @@ export const AdminDashboardScreen: React.FC = () => {
   }
 
   const mainModules = [
-    { id: 'calendar', label: '📅 Agenda y Turnos', icon: 'calendar-month', color: colors.primary },
-    { id: 'products', label: '🏷️ Catálogo & Stock', icon: 'storefront', color: colors.accent },
-    { id: 'orders', label: '🚚 Pedidos y Envíos', icon: 'truck-delivery', color: colors.success },
-    { id: 'employees', label: '👥 Personal', icon: 'account-group', color: colors.warning },
-    { id: 'marketing', label: '📢 Campañas Push', icon: 'bullhorn', color: colors.accent },
-    { id: 'coupons', label: '🎟️ Cupones de Descuento', icon: 'ticket-percent-outline', color: colors.primary },
-    { id: 'followups', label: '🩺 Seguimientos Clínicos', icon: 'clipboard-pulse-outline', color: colors.danger },
-    { id: 'settings', label: '⚙️ Configuración Clínica', icon: 'cog-outline', color: colors.textMuted },
-    { id: 'logs', label: '📄 Registro de Auditoría', icon: 'shield-account-outline', color: colors.primaryDark },
+    { id: 'calendar', label: 'Agenda y Turnos', icon: 'calendar-month', color: colors.primary },
+    { id: 'products', label: 'Catálogo & Stock', icon: 'storefront', color: colors.accent },
+    { id: 'orders', label: 'Pedidos y Envíos', icon: 'truck-delivery', color: colors.success },
+    { id: 'employees', label: 'Personal', icon: 'account-group', color: colors.warning },
+    { id: 'marketing', label: 'Campañas Push', icon: 'bullhorn', color: colors.accent },
+    { id: 'coupons', label: 'Cupones de Descuento', icon: 'ticket-percent-outline', color: colors.primary },
+    { id: 'followups', label: 'Seguimientos Clínicos', icon: 'clipboard-pulse-outline', color: colors.danger },
+    { id: 'settings', label: 'Configuración Clínica', icon: 'cog-outline', color: colors.textMuted },
+    { id: 'logs', label: 'Registro de Auditoría', icon: 'shield-account-outline', color: colors.primaryDark },
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>Panel Administrador 🏥</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.greeting}>Panel Administrador</Text>
       <Text style={styles.subGreeting}>Bienvenido, {user?.name?.split(' ')[0]}</Text>
 
       {/* Rango de tiempo */}
@@ -445,7 +454,7 @@ export const AdminDashboardScreen: React.FC = () => {
           {/* Alertas */}
           {alerts.length > 0 && (
             <>
-              <Text style={styles.sectionHeaderText}>⚠️ Requieren atención</Text>
+              <Text style={styles.sectionHeaderText}>Requieren atención</Text>
               {alerts.map((a, i) => (
                 <TouchableOpacity key={i} onPress={a.onPress} activeOpacity={0.85}>
                   <Card variant="highlight" style={styles.alertCard}>
@@ -482,13 +491,14 @@ export const AdminDashboardScreen: React.FC = () => {
       ))}
 
       <Button title="Cerrar sesión" onPress={logout} variant="ghost" style={{ marginTop: spacing.xl }} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing['3xl'] },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
   noAccess: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMain },
   noAccessText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.md, color: colors.textMuted, marginTop: spacing.md },
   topBackBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm, backgroundColor: colors.bgMain, borderBottomWidth: 1, borderBottomColor: colors.border },
