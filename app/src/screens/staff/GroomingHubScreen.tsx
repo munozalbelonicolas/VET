@@ -1,7 +1,8 @@
 // ============================================================
 // Veterinaria La Plata — Grooming Hub Screen (Peluquería)
 // Sistema completo de gestión de turnos de peluquería, agendamiento
-// de nuevos turnos, búsqueda en tiempo real e historial clínico/grooming
+// de nuevos turnos, buscador de historias clínicas de pacientes (idéntico al del veterinario)
+// y registro estructurado de servicios.
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,6 +15,7 @@ import {
   Alert,
   Modal,
   Image,
+  FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -81,6 +83,7 @@ const isSameDay = (d1: Date, d2: Date): boolean =>
 
 export const GroomingHubScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'turnero' | 'patients'>('turnero');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [petsMap, setPetsMap] = useState<Record<string, Pet>>({});
@@ -88,6 +91,9 @@ export const GroomingHubScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Buscador de Pacientes (Pestaña Fichas Clínicas)
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
 
   // Modal Historial de Mascota
   const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
@@ -340,7 +346,18 @@ export const GroomingHubScreen: React.FC = () => {
     }
   };
 
-  // Filtrar historial de la mascota por búsqueda
+  // Buscador de Historias Clínicas (Pestaña Fichas & Pacientes)
+  const pClean = patientSearchQuery.trim().toLowerCase();
+  const filteredPatientsList = allPetsList.filter((p) => {
+    if (!pClean) return true;
+    return (
+      p.name.toLowerCase().includes(pClean) ||
+      (p.breed || '').toLowerCase().includes(pClean) ||
+      (p.ownerName || '').toLowerCase().includes(pClean)
+    );
+  });
+
+  // Filtrar historial de la mascota por búsqueda interna
   const hClean = historySearchQuery.trim().toLowerCase();
   const filteredGroomingRecords = petGroomingRecords.filter((r) => {
     if (!hClean) return true;
@@ -371,93 +388,120 @@ export const GroomingHubScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header Peluquería */}
+      {/* Header Peluquería (Título limpio y botón Agendar a la derecha con espacio) */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Estética & Peluquería</Text>
+        <View style={{ flex: 1, marginRight: spacing.md }}>
+          <Text style={styles.title} numberOfLines={1}>Estética & Peluquería</Text>
           <Text style={styles.subtitle}>Hola, {user?.name?.split(' ')[0] || 'Peluquero'}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-          <Button
-            title="+ Agendar Turno"
-            size="sm"
-            variant="accent"
-            onPress={() => setNewAppModalVisible(true)}
-          />
-          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-            <MaterialCommunityIcons name="logout" size={18} color={colors.danger} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Buscador Global en Peluquería */}
-      <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.xs }}>
-        <Input
-          placeholder="🔍 Buscar por mascota, raza o dueño..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          containerStyle={{ marginBottom: 0 }}
+        <Button
+          title="+ Agendar Turno"
+          size="sm"
+          variant="accent"
+          onPress={() => setNewAppModalVisible(true)}
         />
       </View>
 
-      {/* Date Selector / Turnero del Día */}
-      <View style={styles.dateBar}>
-        <TouchableOpacity style={styles.dateNavBtn} onPress={() => changeDay(-1)}>
-          <MaterialCommunityIcons name="chevron-left" size={24} color={colors.textDark} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.dateCenter} onPress={() => setSelectedDate(new Date())}>
-          <MaterialCommunityIcons name="calendar-month" size={20} color={colors.primary} />
-          <Text style={styles.dateText}>
-            {isSameDay(selectedDate, new Date())
-              ? 'Hoy'
-              : selectedDate.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}
+      {/* Tabs Principales de Peluquería */}
+      <View style={styles.workspaceTabRow}>
+        <TouchableOpacity
+          style={[styles.workspaceTab, activeWorkspaceTab === 'turnero' && styles.workspaceTabActive]}
+          onPress={() => setActiveWorkspaceTab('turnero')}
+        >
+          <MaterialCommunityIcons
+            name="calendar-clock"
+            size={18}
+            color={activeWorkspaceTab === 'turnero' ? colors.primaryDark : colors.textMuted}
+          />
+          <Text style={[styles.workspaceTabText, activeWorkspaceTab === 'turnero' && styles.workspaceTabTextActive]}>
+            Turnero del Día
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.dateNavBtn} onPress={() => changeDay(1)}>
-          <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textDark} />
+        <TouchableOpacity
+          style={[styles.workspaceTab, activeWorkspaceTab === 'patients' && styles.workspaceTabActive]}
+          onPress={() => setActiveWorkspaceTab('patients')}
+        >
+          <MaterialCommunityIcons
+            name="folder-account-outline"
+            size={18}
+            color={activeWorkspaceTab === 'patients' ? colors.primaryDark : colors.textMuted}
+          />
+          <Text style={[styles.workspaceTabText, activeWorkspaceTab === 'patients' && styles.workspaceTabTextActive]}>
+            Fichas & Pacientes
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* KPI Cards */}
-      <View style={styles.kpiRow}>
-        <View style={[styles.kpiCard, { borderColor: colors.primarySoft }]}>
-          <Text style={styles.kpiValue}>{totalToday}</Text>
-          <Text style={styles.kpiLabel}>Turnos Día</Text>
-        </View>
-        <View style={[styles.kpiCard, { borderColor: colors.warning }]}>
-          <Text style={[styles.kpiValue, { color: colors.warning }]}>{pendingToday}</Text>
-          <Text style={styles.kpiLabel}>Pendientes</Text>
-        </View>
-        <View style={[styles.kpiCard, { borderColor: colors.success }]}>
-          <Text style={[styles.kpiValue, { color: colors.success }]}>{completedToday}</Text>
-          <Text style={styles.kpiLabel}>Completados</Text>
-        </View>
-      </View>
-
-      {/* Filter Status Row */}
-      <View style={styles.filterRow}>
-        {(['all', 'pending', 'completed'] as const).map((st) => (
-          <TouchableOpacity
-            key={st}
-            style={[styles.filterPill, filterStatus === st && styles.filterPillActive]}
-            onPress={() => setFilterStatus(st)}
-          >
-            <Text style={[styles.filterPillText, filterStatus === st && styles.filterPillTextActive]}>
-              {st === 'all' ? 'Todos' : st === 'pending' ? 'Pendientes' : 'Completados'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {loading ? (
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : (
+      {/* PESTAÑA 1: TURNERO DEL DÍA */}
+      {activeWorkspaceTab === 'turnero' ? (
         <ScrollView contentContainerStyle={styles.list}>
-          {filteredAppointments.length === 0 ? (
+          {/* Buscador de Turnos */}
+          <View style={{ marginBottom: spacing.sm }}>
+            <Input
+              placeholder="🔍 Buscar por mascota, raza o dueño..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </View>
+
+          {/* Date Selector */}
+          <View style={styles.dateBar}>
+            <TouchableOpacity style={styles.dateNavBtn} onPress={() => changeDay(-1)}>
+              <MaterialCommunityIcons name="chevron-left" size={24} color={colors.textDark} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.dateCenter} onPress={() => setSelectedDate(new Date())}>
+              <MaterialCommunityIcons name="calendar-month" size={20} color={colors.primary} />
+              <Text style={styles.dateText}>
+                {isSameDay(selectedDate, new Date())
+                  ? 'Hoy'
+                  : selectedDate.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.dateNavBtn} onPress={() => changeDay(1)}>
+              <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textDark} />
+            </TouchableOpacity>
+          </View>
+
+          {/* KPI Cards */}
+          <View style={styles.kpiRow}>
+            <View style={[styles.kpiCard, { borderColor: colors.primarySoft }]}>
+              <Text style={styles.kpiValue}>{totalToday}</Text>
+              <Text style={styles.kpiLabel}>Turnos Día</Text>
+            </View>
+            <View style={[styles.kpiCard, { borderColor: colors.warning }]}>
+              <Text style={[styles.kpiValue, { color: colors.warning }]}>{pendingToday}</Text>
+              <Text style={styles.kpiLabel}>Pendientes</Text>
+            </View>
+            <View style={[styles.kpiCard, { borderColor: colors.success }]}>
+              <Text style={[styles.kpiValue, { color: colors.success }]}>{completedToday}</Text>
+              <Text style={styles.kpiLabel}>Completados</Text>
+            </View>
+          </View>
+
+          {/* Filter Status Row */}
+          <View style={styles.filterRow}>
+            {(['all', 'pending', 'completed'] as const).map((st) => (
+              <TouchableOpacity
+                key={st}
+                style={[styles.filterPill, filterStatus === st && styles.filterPillActive]}
+                onPress={() => setFilterStatus(st)}
+              >
+                <Text style={[styles.filterPillText, filterStatus === st && styles.filterPillTextActive]}>
+                  {st === 'all' ? 'Todos' : st === 'pending' ? 'Pendientes' : 'Completados'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {loading ? (
+            <View style={styles.centerState}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : filteredAppointments.length === 0 ? (
             <Card variant="outlined" style={styles.emptyCard}>
               <MaterialCommunityIcons name="content-cut" size={40} color={colors.textLight} />
               <Text style={styles.emptyText}>
@@ -524,6 +568,79 @@ export const GroomingHubScreen: React.FC = () => {
               );
             })
           )}
+
+          {/* Botón de Cerrar Sesión en la Parte Inferior */}
+          <Button
+            title="Cerrar sesión"
+            onPress={logout}
+            variant="ghost"
+            style={styles.bottomLogoutBtn}
+          />
+        </ScrollView>
+      ) : (
+        /* PESTAÑA 2: FICHAS & HISTORIAS CLÍNICAS (Buscador idéntico al veterinario) */
+        <ScrollView contentContainerStyle={styles.list}>
+          <Text style={styles.sectionTitle}>Buscador de Historias Clínicas & Expedientes</Text>
+          <Text style={styles.sectionSub}>Buscá pacientes de la clínica para ver su historial médico y de peluquería.</Text>
+
+          <Input
+            placeholder="🔍 Buscar paciente por nombre, raza o dueño..."
+            value={patientSearchQuery}
+            onChangeText={setPatientSearchQuery}
+            containerStyle={{ marginBottom: spacing.md }}
+          />
+
+          {loading ? (
+            <View style={styles.centerState}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : filteredPatientsList.length === 0 ? (
+            <Card variant="outlined" style={styles.emptyCard}>
+              <MaterialCommunityIcons name="paw-off-outline" size={40} color={colors.textLight} />
+              <Text style={styles.emptyText}>No se encontraron pacientes con esa búsqueda.</Text>
+            </Card>
+          ) : (
+            filteredPatientsList.map((pet) => (
+              <Card key={pet.id} variant="elevated" style={styles.patientDirectoryCard}>
+                <View style={styles.patientRowHeader}>
+                  <View style={styles.petAvatar}>
+                    <MaterialCommunityIcons name="paw" size={24} color={colors.primaryDark} />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={styles.petName}>{pet.name}</Text>
+                      <Badge
+                        label={pet.healthStatus === 'green' ? 'Saludable ✓' : 'Atención ⚠️'}
+                        variant={pet.healthStatus === 'green' ? 'success' : 'warning'}
+                        size="sm"
+                      />
+                    </View>
+                    <Text style={styles.petMeta}>
+                      {pet.breed || 'Sin raza'} • {pet.sex === 'female' ? 'Hembra ♀' : 'Macho ♂'} • {pet.currentWeight || 0} kg
+                    </Text>
+                    {pet.ownerName ? <Text style={styles.ownerName}>Dueño/a: {pet.ownerName}</Text> : null}
+                  </View>
+                </View>
+
+                <Button
+                  title="📋 Abrir Expediente e Historial"
+                  size="sm"
+                  variant="outline"
+                  style={{ marginTop: spacing.md }}
+                  onPress={() => openPetHistory(pet.id, pet.name)}
+                />
+              </Card>
+            ))
+          )}
+
+          {/* Botón de Cerrar Sesión en la Parte Inferior */}
+          <Button
+            title="Cerrar sesión"
+            onPress={logout}
+            variant="ghost"
+            style={styles.bottomLogoutBtn}
+          />
         </ScrollView>
       )}
 
@@ -902,7 +1019,46 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
   subtitle: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted },
-  logoutBtn: { padding: spacing.xs },
+
+  workspaceTabRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+  },
+  workspaceTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.bgCard,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  workspaceTabActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  workspaceTabText: {
+    fontFamily: fonts.nunito.semiBold,
+    fontSize: fontSizes.xs,
+    color: colors.textMuted,
+  },
+  workspaceTabTextActive: {
+    fontFamily: fonts.nunito.bold,
+    color: colors.primaryDark,
+  },
+
+  sectionTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark },
+  sectionSub: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted, marginBottom: spacing.md, marginTop: 2 },
+
+  patientDirectoryCard: { padding: spacing.md, marginBottom: spacing.md },
+  patientRowHeader: { flexDirection: 'row', alignItems: 'center' },
+  petMeta: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
 
   dateBar: {
     flexDirection: 'row',
@@ -970,6 +1126,7 @@ const styles = StyleSheet.create({
   serviceNote: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textDark, marginBottom: spacing.sm },
 
   cardActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  bottomLogoutBtn: { marginTop: spacing.xl, marginBottom: spacing.xl },
 
   // Modales
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
