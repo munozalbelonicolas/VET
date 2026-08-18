@@ -25,9 +25,10 @@ export const PetHistoryModal: React.FC<PetHistoryModalProps> = ({ visible, onClo
   }, [visible, user]);
 
   const loadPets = async () => {
+    if (!user?.id) return;
     setLoading(true);
     try {
-      const userPets = await getPetsByOwner(user!.id);
+      const userPets = await getPetsByOwner(user.id);
       setPets(userPets);
     } catch (e) {
       console.log('Error loading pets for history', e);
@@ -65,7 +66,9 @@ export const PetHistoryModal: React.FC<PetHistoryModalProps> = ({ visible, onClo
                 )}
                 <View style={styles.petInfo}>
                   <Text style={styles.petName}>{pet.name}</Text>
-                  <Text style={styles.petBreed}>{pet.breed} • {pet.ageYears ? `${pet.ageYears} años` : `${pet.ageMonths} meses`}</Text>
+                  <Text style={styles.petBreed}>
+                    {pet.breed} • {pet.ageYears ? `${pet.ageYears} años` : pet.ageMonths ? `${pet.ageMonths} meses` : ''}
+                  </Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textLight} />
               </TouchableOpacity>

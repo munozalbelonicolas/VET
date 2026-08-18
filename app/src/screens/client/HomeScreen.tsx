@@ -4,8 +4,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, shadows, borderRadius } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, shadows, borderRadius, letterSpacing } from '../../config/theme';
 import { Card, Button, Logo, Badge } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { Pet } from '../../types';
@@ -26,7 +27,8 @@ const ClientHomeScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   }, []);
 
   const loadPets = async () => {
-    const userPets = await getPetsByOwner(user?.id || 'client-001');
+    if (!user?.id) return;
+    const userPets = await getPetsByOwner(user.id);
     setPets(userPets);
   };
 
@@ -53,20 +55,28 @@ const ClientHomeScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hola, {user?.name?.split(' ')[0]}! 🐾</Text>
-          <Text style={styles.subGreeting}>¿Cómo están tus mascotas hoy?</Text>
+      {/* Hero header premium */}
+      <LinearGradient
+        colors={colors.gradientHero}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroEyebrow}>VETERINARIA LA PLATA</Text>
+            <Text style={styles.greeting}>Hola, {user?.name?.split(' ')[0]}! 🐾</Text>
+            <Text style={styles.subGreeting}>¿Cómo están tus mascotas hoy?</Text>
+          </View>
+          <TouchableOpacity style={styles.avatarPlaceholder} onPress={() => navigation?.navigate('Profile')}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: colors.bgCard }} />
+            ) : (
+              <MaterialCommunityIcons name="account-circle" size={52} color={colors.primary} />
+            )}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.avatarPlaceholder} onPress={() => navigation?.navigate('Profile')}>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24 }} />
-          ) : (
-            <MaterialCommunityIcons name="account-circle" size={48} color={colors.primary} />
-          )}
-        </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
       {/* Pets List Carousel/Cards */}
       <View style={styles.sectionHeader}>
@@ -142,16 +152,21 @@ const ClientHomeScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
         </View>
 
       {/* Promo Banner */}
-      <Card variant="elevated" style={styles.promoBanner}>
+      <LinearGradient
+        colors={colors.gradientAccent}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.promoBanner}
+      >
         <View style={styles.promoContent}>
           <View style={{ flex: 1 }}>
             <Text style={styles.promoTag}>🎉 PROMO EXCLUSIVA</Text>
             <Text style={styles.promoTitle}>20% OFF en Alimentos</Text>
             <Text style={styles.promoDesc}>En marcas seleccionadas comprando desde la app.</Text>
           </View>
-          <MaterialCommunityIcons name="tag-heart" size={44} color={colors.accent} />
+          <MaterialCommunityIcons name="tag-heart" size={44} color="rgba(255,255,255,0.9)" />
         </View>
-      </Card>
+      </LinearGradient>
       </ScrollView>
 
       {/* Add Pet Modal */}
@@ -176,13 +191,28 @@ const ClientHomeScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl },
-  greeting: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 120 },
+  hero: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    ...shadows.md,
+  },
+  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroEyebrow: {
+    fontFamily: fonts.nunito.bold,
+    fontSize: fontSizes.xs,
+    color: colors.primaryDark,
+    letterSpacing: letterSpacing.caption,
+    marginBottom: spacing.xs,
+  },
+  greeting: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark, letterSpacing: letterSpacing.tight },
   subGreeting: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.md, color: colors.textMuted, marginTop: spacing.xs },
-  avatarPlaceholder: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  avatarPlaceholder: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.bgCard, alignItems: 'center', justifyContent: 'center', ...shadows.sm },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  sectionTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark },
+  sectionTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark, letterSpacing: letterSpacing.display },
   addText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.primaryDark },
   petsScroll: { flexGrow: 0, marginBottom: spacing.md },
   petCard: { width: 140, padding: spacing.md, alignItems: 'center', marginRight: spacing.md },
@@ -196,11 +226,11 @@ const styles = StyleSheet.create({
   quickActionCard: { width: '48%', alignItems: 'center', paddingVertical: spacing.lg, marginBottom: spacing.md },
   quickActionIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm },
   quickActionLabel: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.sm, color: colors.textDark },
-  promoBanner: { marginBottom: spacing.lg, backgroundColor: colors.accentSoft, borderLeftWidth: 4, borderLeftColor: colors.accent },
+  promoBanner: { marginBottom: spacing.lg, borderRadius: borderRadius.xl, padding: spacing.xl, ...shadows.md },
   promoContent: { flexDirection: 'row', alignItems: 'center' },
-  promoTag: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.xs, color: colors.accent, marginBottom: spacing.xs },
-  promoTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark },
-  promoDesc: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginTop: spacing.xs },
+  promoTag: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.xs, color: 'rgba(255,255,255,0.9)', letterSpacing: letterSpacing.caption, marginBottom: spacing.xs },
+  promoTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: '#FFFFFF' },
+  promoDesc: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: 'rgba(255,255,255,0.95)', marginTop: spacing.xs },
   fab: {
     position: 'absolute',
     bottom: spacing.xl,

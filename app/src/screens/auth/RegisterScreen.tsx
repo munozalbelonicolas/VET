@@ -91,7 +91,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
           <Logo size={100} showText={false} />
         </View>
 
-        <Text style={styles.title}>Creá tu cuenta 🐾</Text>
+        <Text style={styles.title}>Creá tu cuenta</Text>
         <Text style={styles.subtitle}>
           Registrate para cuidar de tu mascota
         </Text>

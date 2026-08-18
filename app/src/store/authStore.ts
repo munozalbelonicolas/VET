@@ -2,6 +2,8 @@
 // Veterinaria La Plata — Auth Store (Zustand)
 // ============================================================
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, UserRole } from '../types';
 
 interface AuthState {
@@ -19,34 +21,44 @@ interface AuthState {
   getRole: () => UserRole | null;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  isAuthenticated: false,
-  isLoading: true,
-  hasSeenOnboarding: false,
-  error: null,
-
-  setUser: (user) =>
-    set({
-      user,
-      isAuthenticated: !!user,
-      isLoading: false,
-      error: null,
-    }),
-
-  setLoading: (isLoading) => set({ isLoading }),
-
-  setError: (error) => set({ error, isLoading: false }),
-
-  setHasSeenOnboarding: (hasSeenOnboarding) => set({ hasSeenOnboarding }),
-
-  logout: () =>
-    set({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true,
+      hasSeenOnboarding: false,
       error: null,
-    }),
 
-  getRole: () => get().user?.role ?? null,
-}));
+      setUser: (user) =>
+        set({
+          user,
+          isAuthenticated: !!user,
+          isLoading: false,
+          error: null,
+        }),
+
+      setLoading: (isLoading) => set({ isLoading }),
+
+      setError: (error) => set({ error, isLoading: false }),
+
+      setHasSeenOnboarding: (hasSeenOnboarding) => set({ hasSeenOnboarding }),
+
+      logout: () =>
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+        }),
+
+      getRole: () => get().user?.role ?? null,
+    }),
+    {
+      name: 'vet-auth',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Solo persistimos el flag de onboarding; la sesión se restaura desde Firebase
+      partialize: (state) => ({ hasSeenOnboarding: state.hasSeenOnboarding }),
+    }
+  )
+);

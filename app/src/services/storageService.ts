@@ -1,8 +1,13 @@
 // ============================================================
-// Veterinaria La Plata — Storage Service (Cloudinary Signed)
+// Veterinaria La Plata — Storage Service (Cloudinary Unsigned)
 // ============================================================
-import * as Crypto from 'expo-crypto';
 
+/**
+ * Sube una imagen en base64 a Cloudinary usando un unsigned upload preset.
+ * Nunca se firman las peticiones en el cliente (el API secret no debe
+ * estar embebido en el bundle). Si Cloudinary no está configurado o falla,
+ * se devuelve el data URI original para no romper el flujo.
+ */
 export const uploadImageBase64 = async (base64String: string, path?: string): Promise<string> => {
   const filePayload = base64String.startsWith('data:')
     ? base64String
@@ -10,50 +15,20 @@ export const uploadImageBase64 = async (base64String: string, path?: string): Pr
 
   try {
     const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY;
-    const apiSecret = process.env.EXPO_PUBLIC_CLOUDINARY_API_SECRET;
     const uploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
-    if (!cloudName) {
+    if (!cloudName || !uploadPreset) {
       return filePayload;
     }
 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-    let bodyData: Record<string, string> = {};
 
-    if (uploadPreset && (!apiKey || !apiSecret)) {
-      // Unsigned Upload
-      bodyData = {
-        file: filePayload,
-        upload_preset: uploadPreset,
-      };
-    } else if (apiKey && apiSecret) {
-      // Signed Upload
-      const timestamp = Math.round(new Date().getTime() / 1000).toString();
-      let stringToSign = `timestamp=${timestamp}`;
-      if (uploadPreset) {
-        stringToSign = `timestamp=${timestamp}&upload_preset=${uploadPreset}`;
-      }
-      stringToSign += apiSecret;
-
-      const signature = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA1,
-        stringToSign
-      );
-
-      bodyData = {
-        file: filePayload,
-        api_key: apiKey,
-        timestamp: timestamp,
-        signature: signature,
-      };
-
-      if (uploadPreset) {
-        bodyData.upload_preset = uploadPreset;
-      }
-    } else {
-      return filePayload;
-    }
+    const bodyData: Record<string, string> = {
+      file: filePayload,
+      upload_preset: uploadPreset,
+      // 'folder' opcional para organizar por módulo
+      ...(path ? { folder: `veterinaria/${path.replace(/\//g, '_')}` } : {}),
+    };
 
     const response = await fetch(uploadUrl, {
       method: 'POST',
@@ -67,7 +42,6 @@ export const uploadImageBase64 = async (base64String: string, path?: string): Pr
 
     if (!response.ok) {
       console.warn('Cloudinary notice:', data?.error?.message);
-      // If Cloudinary credentials lack permissions, use filePayload so app NEVER breaks or hangs
       return filePayload;
     }
 
@@ -104,5 +78,52 @@ export const uploadImage = async (uri: string, path?: string): Promise<string> =
     });
   } catch {
     return uri;
+  }
+};
+
+/**
+ * Sube un PDF / estudio a Cloudinary (endpoint /raw/upload, sin API secret).
+ */
+export const uploadPdf = async (uri: string, path?: string): Promise<string | null> => {
+  try {
+    const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+    if (!cloudName || !uploadPreset) return null;
+
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+
+    if (!base64) return null;
+
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`;
+    const bodyData: Record<string, string> = {
+      file: base64,
+      upload_preset: uploadPreset,
+      ...(path ? { folder: `veterinaria/${path.replace(/\//g, '_')}` } : {}),
+    };
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyData),
+    });
+    const data: any = await uploadResponse.json();
+
+    if (!uploadResponse.ok) {
+      console.warn('Cloudinary raw notice:', data?.error?.message);
+      return null;
+    }
+
+    return data.secure_url;
+  } catch (error: any) {
+    console.warn('Cloudinary raw network notice:', error?.message);
+    return null;
   }
 };

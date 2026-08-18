@@ -1,6 +1,6 @@
 // ============================================================
 // Veterinaria La Plata — Client Tab Navigator
-// Animated tab bar with paw icons
+// Tab bar premium: píldora flotante con indicador activo
 // ============================================================
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
@@ -12,7 +12,7 @@ import ShopScreen from '../screens/client/ShopScreen';
 import NotificationsScreen from '../screens/client/NotificationsScreen';
 import ProfileScreen from '../screens/client/ProfileScreen';
 import { ClientTabParamList } from '../types';
-import { colors, fonts, fontSizes, spacing, shadows } from '../config/theme';
+import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../config/theme';
 
 const Tab = createBottomTabNavigator<ClientTabParamList>();
 
@@ -37,7 +37,7 @@ const ClientTabs: React.FC = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color }) => {
           const iconName = focused
             ? tabIcons[route.name]?.active
             : tabIcons[route.name]?.inactive;
@@ -46,29 +46,39 @@ const ClientTabs: React.FC = () => {
             <View style={focused ? styles.activeIconContainer : undefined}>
               <MaterialCommunityIcons
                 name={iconName as any}
-                size={focused ? 26 : 24}
+                size={focused ? 24 : 23}
                 color={color}
               />
-              {focused && <View style={styles.activeIndicator} />}
             </View>
           );
         },
         tabBarLabel: tabLabels[route.name],
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.primaryDark,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
           fontFamily: fonts.nunito.semiBold,
           fontSize: fontSizes.xs,
-          marginTop: -2,
+          marginTop: 1,
         },
         tabBarStyle: {
+          position: 'absolute',
+          bottom: spacing.md,
+          left: spacing.lg,
+          right: spacing.lg,
+          height: 68,
+          paddingTop: spacing.xs,
+          paddingBottom: spacing.sm,
           backgroundColor: colors.bgCard,
           borderTopWidth: 0,
-          height: 85,
-          paddingTop: spacing.sm,
-          paddingBottom: spacing.xl,
+          borderRadius: borderRadius.xl,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.hairline,
           ...shadows.lg,
         },
+        tabBarItemStyle: {
+          borderRadius: borderRadius.full,
+        },
+        tabBarActiveBackgroundColor: colors.primarySoft,
       })}
     >
       <Tab.Screen name="Home" component={ClientHomeScreen} />
@@ -83,13 +93,7 @@ const ClientTabs: React.FC = () => {
 const styles = StyleSheet.create({
   activeIconContainer: {
     alignItems: 'center',
-  },
-  activeIndicator: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.primary,
-    marginTop: 3,
+    justifyContent: 'center',
   },
 });
 

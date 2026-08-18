@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, letterSpacing } from '../../config/theme';
 import { Button, Card } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { logOut } from '../../services/authService';
@@ -24,79 +24,108 @@ import { PaymentMethodsModal } from './profile/PaymentMethodsModal';
 import { HelpCenterModal } from './profile/HelpCenterModal';
 import { PetHistoryModal } from './profile/PetHistoryModal';
 
+type ModalId =
+  | 'personal'
+  | 'address'
+  | 'pets'
+  | 'prefs'
+  | 'payments'
+  | 'help';
+
+const MENU_ITEMS: { id: ModalId; icon: string; label: string }[] = [
+  { id: 'personal', icon: 'account-edit-outline', label: 'Datos personales y contacto' },
+  { id: 'address', icon: 'map-marker-outline', label: 'Direcciones de entrega' },
+  { id: 'pets', icon: 'paw', label: 'Historial de mis mascotas' },
+  { id: 'prefs', icon: 'bell-outline', label: 'Preferencias de notificaciones' },
+  { id: 'payments', icon: 'credit-card-outline', label: 'Métodos de pago' },
+  { id: 'help', icon: 'help-circle-outline', label: 'Centro de Ayuda y Contacto' },
+];
+
+const roleLabel: Record<string, string> = {
+  client: 'CLIENTE',
+  vet: 'VETERINARIO',
+  groomer: 'PELUQUERO',
+  receptionist: 'RECEPCIONISTA',
+  admin: 'ADMINISTRADOR',
+};
+
 export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const [activeModal, setActiveModal] = React.useState<string | null>(null);
+  const [activeModal, setActiveModal] = React.useState<ModalId | null>(null);
 
-  const handleAction = (label: string) => {
-    setActiveModal(label);
+  const handleLogout = () => {
+    Alert.alert('Cerrar sesión', '¿Seguro que querés cerrar tu sesión?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar sesión',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logOut();
+          } catch (e) {
+            console.log('Logout error (non blocking):', e);
+          } finally {
+            logout();
+          }
+        },
+      },
+    ]);
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-        <Text style={styles.title}>Mi Perfil 👤</Text>
-      </View>
-
-      {/* User Info Card */}
-      <Card variant="elevated" style={styles.userCard}>
-        <View style={styles.avatar}>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={{ width: 80, height: 80, borderRadius: 40 }} />
-          ) : (
-            <MaterialCommunityIcons name="account" size={44} color={colors.primaryDark} />
-          )}
+          <Text style={styles.title}>Mi Perfil</Text>
         </View>
-        <Text style={styles.userName}>{user?.name || 'Cliente Veterinaria'}</Text>
-        <Text style={styles.userEmail}>{user?.email || 'cliente@mascota.com'}</Text>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>CLIENTE VERIFICADO</Text>
+
+        {/* User Info Card */}
+        <Card variant="elevated" style={styles.userCard}>
+          <View style={styles.avatar}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+            ) : (
+              <MaterialCommunityIcons name="account" size={44} color={colors.primaryDark} />
+            )}
+          </View>
+          <Text style={styles.userName}>{user?.name || 'Cliente'}</Text>
+          {user?.email ? <Text style={styles.userEmail}>{user.email}</Text> : null}
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>{roleLabel[user?.role || 'client']}</Text>
+          </View>
+        </Card>
+
+        {/* Menu Options */}
+        <View style={styles.menuSection}>
+          {MENU_ITEMS.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.menuItem}
+              onPress={() => setActiveModal(item.id)}
+            >
+              <View style={styles.menuIconBg}>
+                <MaterialCommunityIcons name={item.icon as any} size={22} color={colors.primaryDark} />
+              </View>
+              <Text style={styles.menuLabel}>{item.label}</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          ))}
         </View>
-      </Card>
 
-      {/* Menu Options */}
-      <View style={styles.menuSection}>
-        {[
-          { icon: 'account-edit-outline', label: 'Datos personales y contacto' },
-          { icon: 'map-marker-outline', label: 'Direcciones de entrega (La Plata)' },
-          { icon: 'paw', label: 'Historial de mis mascotas' },
-          { icon: 'bell-outline', label: 'Preferencias de notificaciones' },
-          { icon: 'credit-card-outline', label: 'Métodos de pago guardados' },
-          { icon: 'help-circle-outline', label: 'Centro de Ayuda y Contacto' },
-        ].map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.menuItem}
-            onPress={() => handleAction(item.label)}
-          >
-            <View style={styles.menuIconBg}>
-              <MaterialCommunityIcons name={item.icon as any} size={22} color={colors.primaryDark} />
-            </View>
-            <Text style={styles.menuLabel}>{item.label}</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textLight} />
-          </TouchableOpacity>
-        ))}
-      </View>
+        <Button
+          title="Cerrar sesión"
+          onPress={handleLogout}
+          variant="outline"
+          fullWidth
+          style={styles.logoutBtn}
+        />
 
-      <Button
-        title="Cerrar sesión"
-        onPress={async () => {
-          await logOut();
-          logout();
-        }}
-        variant="outline"
-        fullWidth
-        style={styles.logoutBtn}
-      />
-
-      <PersonalDataModal visible={activeModal === 'Datos personales y contacto'} onClose={() => setActiveModal(null)} />
-      <AddressModal visible={activeModal === 'Direcciones de entrega (La Plata)'} onClose={() => setActiveModal(null)} />
-      <PetHistoryModal visible={activeModal === 'Historial de mis mascotas'} onClose={() => setActiveModal(null)} />
-      <NotificationPrefsModal visible={activeModal === 'Preferencias de notificaciones'} onClose={() => setActiveModal(null)} />
-      <PaymentMethodsModal visible={activeModal === 'Métodos de pago guardados'} onClose={() => setActiveModal(null)} />
-      <HelpCenterModal visible={activeModal === 'Centro de Ayuda y Contacto'} onClose={() => setActiveModal(null)} />
-
+        <PersonalDataModal visible={activeModal === 'personal'} onClose={() => setActiveModal(null)} />
+        <AddressModal visible={activeModal === 'address'} onClose={() => setActiveModal(null)} />
+        <PetHistoryModal visible={activeModal === 'pets'} onClose={() => setActiveModal(null)} />
+        <NotificationPrefsModal visible={activeModal === 'prefs'} onClose={() => setActiveModal(null)} />
+        <PaymentMethodsModal visible={activeModal === 'payments'} onClose={() => setActiveModal(null)} />
+        <HelpCenterModal visible={activeModal === 'help'} onClose={() => setActiveModal(null)} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -104,9 +133,9 @@ export const ProfileScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 120 },
   header: { marginBottom: spacing.md },
-  title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark },
+  title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark, letterSpacing: letterSpacing.display },
   userCard: { alignItems: 'center', padding: spacing.xl, marginBottom: spacing.lg },
   avatar: {
     width: 80,

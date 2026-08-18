@@ -85,6 +85,23 @@ cp app/.env.example app/.env
 firebase deploy --only firestore:rules,storage
 ```
 
+### Demo mode vs Producción
+
+La app tiene un flag `EXPO_PUBLIC_DEMO_MODE` en `app/.env`:
+
+- **`EXPO_PUBLIC_DEMO_MODE=true`** (por defecto en desarrollo): habilita las cuentas de prueba locales y los fallbacks mock. No requiere Firebase conectado.
+- **`EXPO_PUBLIC_DEMO_MODE=false`** (producción): usa **solo** Firebase Auth y Firestore reales. Los fallbacks mock y las cuentas de prueba se deshabilitan automáticamente.
+
+**Importante en producción:** los usuarios staff (vet, peluquero, recepcionista, admin) no pueden auto-registrarse. Deben crearse con Firebase Auth (email/contraseña) y asignarse su rol en Firestore (`users/{uid}` con `role`) usando Firebase Admin SDK o la consola de Firebase.
+
+### Cloudinary (imágenes)
+
+Las imágenes se suben con un **unsigned upload preset** (sin API secret en el bundle). Configurá en `.env`:
+- `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME`
+- `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`
+
+> ⚠️ Nunca incluyas `EXPO_PUBLIC_CLOUDINARY_API_SECRET` en `.env`/bundle: quedaría expuesto y permitiría subir archivos sin permiso.
+
 ### 3. Correr la App (desarrollo)
 
 ```bash
@@ -108,9 +125,9 @@ Se abre en `http://localhost:5173`
 
 ---
 
-## 👥 Cuentas de Prueba
+## 👥 Cuentas de Prueba (solo demo mode)
 
-La app viene con **mock login** habilitado. Usá cualquiera de estas cuentas (cualquier contraseña de 6+ caracteres):
+Con `EXPO_PUBLIC_DEMO_MODE=true` la app permite login con cuentas de prueba locales (cualquier contraseña de 6+ caracteres):
 
 | Email | Rol | Acceso |
 |-------|-----|--------|
@@ -119,6 +136,8 @@ La app viene con **mock login** habilitado. Usá cualquiera de estas cuentas (cu
 | `peluquero@pelu.com` | ✂️ Peluquero | Agenda peluquería, registro estético |
 | `recep@admin.com` | 📋 Recepcionista | Turnos, cobros, stock, envíos |
 | `admin@soyveterinario.com` | 🏥 Admin | Todo + empleados, marketing, configuración |
+
+Con `EXPO_PUBLIC_DEMO_MODE=false` estas cuentas no funcionan y solo se puede acceder con cuentas reales de Firebase Auth.
 
 ---
 

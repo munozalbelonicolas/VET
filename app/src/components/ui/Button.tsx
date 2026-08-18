@@ -1,6 +1,7 @@
 // ============================================================
 // Veterinaria La Plata — Button Component
 // Variants: primary, accent, outline, ghost, danger
+// Primary/accent usan gradientes premium
 // ============================================================
 import React from 'react';
 import {
@@ -11,8 +12,10 @@ import {
   ViewStyle,
   TextStyle,
   View,
+  StyleProp,
 } from 'react-native';
-import { colors, fonts, fontSizes, spacing, borderRadius } from '../../config/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 
 type ButtonVariant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -27,9 +30,14 @@ interface ButtonProps {
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }
+
+const gradientByVariant: Partial<Record<ButtonVariant, readonly [string, string, string] | readonly [string, string]>> = {
+  primary: colors.gradientPrimary,
+  accent: colors.gradientAccent,
+};
 
 const Button: React.FC<ButtonProps> = ({
   title,
@@ -46,45 +54,64 @@ const Button: React.FC<ButtonProps> = ({
 }) => {
   const isDisabled = disabled || loading;
 
-  const containerStyle: ViewStyle[] = [
+  const baseContainerStyle: ViewStyle[] = [
     styles.base,
-    styles[`container_${variant}`],
     styles[`size_${size}`],
     fullWidth && styles.fullWidth,
     isDisabled && styles.disabled,
-    style as ViewStyle,
   ].filter(Boolean) as ViewStyle[];
 
-  const labelStyle: TextStyle[] = [
-    styles.text,
-    styles[`text_${variant}`],
-    styles[`textSize_${size}`],
-    isDisabled && styles.textDisabled,
-    textStyle as TextStyle,
-  ].filter(Boolean) as TextStyle[];
+  const isGradientVariant = !!gradientByVariant[variant] && !isDisabled;
 
-  const spinnerColor = variant === 'outline' || variant === 'ghost'
-    ? colors.primary
-    : colors.textWhite;
+  const textVariantStyle =
+    variant === 'primary' || variant === 'accent' || variant === 'danger'
+      ? styles.text_onSolid
+      : variant === 'outline'
+      ? styles.text_outline
+      : styles.text_ghost;
+
+  const spinnerColor =
+    variant === 'outline' || variant === 'ghost' ? colors.primary : colors.textWhite;
+
+  const renderLabel = () => {
+    const labelStyle: TextStyle[] = [
+      styles.text,
+      styles[`textSize_${size}`],
+      textVariantStyle,
+      isDisabled && styles.textDisabled,
+      textStyle as TextStyle,
+    ].filter(Boolean) as TextStyle[];
+
+    return (
+      <View style={styles.content}>
+        {icon && iconPosition === 'left' && <View style={styles.iconLeft}>{icon}</View>}
+        <Text style={labelStyle}>{title}</Text>
+        {icon && iconPosition === 'right' && <View style={styles.iconRight}>{icon}</View>}
+      </View>
+    );
+  };
+
+  const gradient = gradientByVariant[variant];
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.7}
-      style={containerStyle}
+      activeOpacity={0.82}
+      style={[style as ViewStyle]}
     >
-      {loading ? (
-        <ActivityIndicator color={spinnerColor} size="small" />
+      {isGradientVariant && gradient ? (
+        <LinearGradient
+          colors={gradient as readonly [string, string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[...baseContainerStyle, styles.elevated]}
+        >
+          {loading ? <ActivityIndicator color={spinnerColor} size="small" /> : renderLabel()}
+        </LinearGradient>
       ) : (
-        <View style={styles.content}>
-          {icon && iconPosition === 'left' && (
-            <View style={styles.iconLeft}>{icon}</View>
-          )}
-          <Text style={labelStyle}>{title}</Text>
-          {icon && iconPosition === 'right' && (
-            <View style={styles.iconRight}>{icon}</View>
-          )}
+        <View style={[...baseContainerStyle, styles[`container_${variant}`], variant === 'primary' || variant === 'accent' || variant === 'danger' ? styles.elevated : undefined]}>
+          {loading ? <ActivityIndicator color={spinnerColor} size="small" /> : renderLabel()}
         </View>
       )}
     </TouchableOpacity>
@@ -97,6 +124,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: borderRadius.md,
+    overflow: 'hidden',
   },
   content: {
     flexDirection: 'row',
@@ -107,7 +135,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.55,
+  },
+  elevated: {
+    ...shadows.md,
   },
 
   // --- Variants ---
@@ -133,17 +164,17 @@ const styles = StyleSheet.create({
   size_sm: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
-    minHeight: 36,
+    minHeight: 38,
   },
   size_md: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
-    minHeight: 48,
+    minHeight: 50,
   },
   size_lg: {
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing['2xl'],
-    minHeight: 56,
+    minHeight: 58,
   },
 
   // --- Text ---
@@ -151,20 +182,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.nunito.bold,
     textAlign: 'center',
   },
-  text_primary: {
-    color: colors.textWhite,
-  },
-  text_accent: {
+  text_onSolid: {
     color: colors.textWhite,
   },
   text_outline: {
-    color: colors.primary,
+    color: colors.primaryDark,
   },
   text_ghost: {
-    color: colors.primary,
-  },
-  text_danger: {
-    color: colors.textWhite,
+    color: colors.primaryDark,
   },
   textSize_sm: {
     fontSize: fontSizes.sm,

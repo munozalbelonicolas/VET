@@ -1,5 +1,6 @@
 // ============================================================
 // Veterinaria La Plata — Input Component
+// Premium: focus ring suave, labels refinados, radii coherentes
 // ============================================================
 import React, { useState } from 'react';
 import {
@@ -12,7 +13,7 @@ import {
   TextInputProps,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, borderRadius } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -48,9 +49,11 @@ const Input: React.FC<InputProps> = ({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && (
+        <Text style={[styles.label, error && styles.labelError]}>{label}</Text>
+      )}
 
-      <View style={[styles.inputContainer, { borderColor }]}>
+      <View style={[styles.inputContainer, { borderColor }, isFocused && !error && styles.focusRing]}>
         {leftIcon && (
           <MaterialCommunityIcons
             name={leftIcon}
@@ -113,14 +116,20 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     marginBottom: spacing.xs,
   },
+  labelError: {
+    color: colors.danger,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
     borderRadius: borderRadius.md,
     backgroundColor: colors.bgCard,
-    minHeight: 50,
+    minHeight: 52,
     paddingHorizontal: spacing.md,
+  },
+  focusRing: {
+    ...shadows.focus,
   },
   input: {
     flex: 1,

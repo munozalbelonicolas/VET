@@ -1,7 +1,7 @@
 // ============================================================
-// Veterinaria La Plata — Appointments Booking & List Screen (Fase 2)
+// Veterinaria La Plata — Appointments Booking & List Screen
 // ============================================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,37 @@ import {
   Alert,
   Modal,
   Platform,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, borderRadius } from '../../config/theme';
 import { Card, Badge, Button, Input } from '../../components/ui';
 import { CalendarView } from '../../components/ui/CalendarView';
 import { Appointment, AppointmentType, TimeSlot, Pet } from '../../types';
 import { getAppointmentsByOwner, createAppointment, getPetsByOwner } from '../../services/dataService';
-import { sendSystemNotification } from '../../services/notificationService';
+import { sendSystemNotification, createInAppNotification } from '../../services/notificationService';
 import { useAuthStore } from '../../store/authStore';
+
+const SERVICE_OPTIONS: { id: AppointmentType; label: string }[] = [
+  { id: 'general', label: '🩺 General' },
+  { id: 'vaccination', label: '💉 Vacuna' },
+  { id: 'grooming', label: '✂️ Peluquería' },
+  { id: 'emergency', label: '🚨 Urgencia' },
+  { id: 'castration', label: '🏥 Castración' },
+];
+
+const typeLabel = (type: AppointmentType): string => {
+  switch (type) {
+    case 'vaccination': return '💉 Vacunación';
+    case 'grooming': return '✂️ Peluquería';
+    case 'emergency': return '🚨 Urgencia';
+    case 'castration': return '🏥 Castración';
+    default: return '🩺 Consulta General';
+  }
+};
 
 export const AppointmentsScreen: React.FC = () => {
   const { user } = useAuthStore();
@@ -31,65 +51,50 @@ export const AppointmentsScreen: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
 
-  // Preventative health reminders for client calendar view
-  const PREVENTATIVE_HEALTH_EVENTS: Appointment[] = [
-    {
-      id: 'prev-1',
-      petId: 'pet-1',
-      petName: 'Luna',
-      ownerId: user?.id || 'client-001',
-      ownerName: user?.name || 'Cliente',
-      type: 'vaccination',
-      date: new Date(Date.now() + 86400000 * 3), // en 3 días
-      timeSlot: '09:00 (Recordatorio)',
-      status: 'confirmed',
-      notes: '💉 Refuerzo Vacuna Sextuple Anual',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: 'prev-2',
-      petId: 'pet-1',
-      petName: 'Luna',
-      ownerId: user?.id || 'client-001',
-      ownerName: user?.name || 'Cliente',
-      type: 'general',
-      date: new Date(Date.now() + 86400000 * 7), // en 7 días
-      timeSlot: 'Todo el día',
-      status: 'confirmed',
-      notes: '🪱 Desparasitación Interna de Rutina (Pastilla)',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ];
-
   // New appointment form state
   const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
   const [type, setType] = useState<AppointmentType>('general');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(Date.now() + 86400000)); // mañana por defecto
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(Date.now() + 86400000));
   const [showDatePicker, setShowDatePicker] = useState(Platform.OS === 'ios');
   const [timeSlot, setTimeSlot] = useState<TimeSlot>('morning');
   const [notes, setNotes] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
 
+  const loadData = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const [apps, userPets] = await Promise.all([
+        getAppointmentsByOwner(user.id),
+        getPetsByOwner(user.id),
+      ]);
+      setAppointments(apps);
+      setPets(userPets);
+      if (userPets.length > 0) {
+        setSelectedPet((current) => current ?? userPets[0]);
+      }
+    } catch (error) {
+      console.log('loadData error:', error);
+      Alert.alert('Error', 'No se pudieron cargar tus turnos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     loadData();
-  }, []);
-
-  const loadData = async () => {
-    setLoading(true);
-    const userId = user?.id || 'client-001';
-    const apps = await getAppointmentsByOwner(userId);
-    const userPets = await getPetsByOwner(userId);
-    setAppointments(apps);
-    setPets(userPets);
-    if (userPets.length > 0) setSelectedPet(userPets[0]);
-    setLoading(false);
-  };
+  }, [loadData]);
 
   const handleBookAppointment = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'Debés iniciar sesión para reservar un turno');
+      return;
+    }
     if (!selectedPet) {
-      Alert.alert('Error', 'Debes seleccionar o registrar una mascota');
+      Alert.alert('Error', 'Debés seleccionar o registrar una mascota');
       return;
     }
 
@@ -98,37 +103,86 @@ export const AppointmentsScreen: React.FC = () => {
       const newApp = await createAppointment({
         petId: selectedPet.id,
         petName: selectedPet.name,
-        ownerId: user?.id || 'client-001',
-        ownerName: user?.name || 'Cliente',
+        ownerId: user.id,
+        ownerName: user.name,
         type,
         date: selectedDate,
         timeSlot,
-        status: 'confirmed',
+        status: 'pending',
         notes,
       });
 
-      setAppointments([newApp, ...appointments]);
+      setAppointments((current) => [newApp, ...current]);
       setModalVisible(false);
 
-      // Trigger native system notification with sound & banner
-      await sendSystemNotification({
-        title: '📅 ¡Turno Confirmado!',
-        body: `Tu turno para ${selectedPet.name} ha sido reservado para el ${selectedDate.toLocaleDateString()} a las ${timeSlot}.`,
-        data: { appointmentId: newApp.id },
-      });
+      // Notificaciones no bloqueantes: no deben fallar el booking si no hay permisos
+      try {
+        await Promise.all([
+          sendSystemNotification({
+            title: '📅 ¡Turno Solicitado!',
+            body: `Tu turno para ${selectedPet.name} fue solicitado. Te confirmamos a la brevedad.`,
+            data: { appointmentId: newApp.id },
+          }),
+          createInAppNotification({
+            userId: user.id,
+            type: 'appointment_confirmation',
+            title: 'Turno solicitado',
+            body: `Solicitaste un turno para ${selectedPet.name} el ${selectedDate.toLocaleDateString('es-AR')}.`,
+            data: { appointmentId: newApp.id },
+          }),
+        ]);
+      } catch (notifError) {
+        console.log('Notification error (non blocking):', notifError);
+      }
 
-      Alert.alert('¡Turno Reservado! ❤️', `Turno confirmado para ${selectedPet.name}. ¡Te esperamos!`);
+      Alert.alert('¡Turno Solicitado! ❤️', `Recibimos tu solicitud para ${selectedPet.name}. Te confirmaremos el turno por avisos.`);
     } catch (error) {
-      Alert.alert('Error', 'No se pudo reservar el turno');
+      Alert.alert('Error', 'No se pudo reservar el turno. Intentá de nuevo.');
     } finally {
       setBookingLoading(false);
     }
   };
 
+  const renderAppointment = ({ item }: { item: Appointment }) => (
+    <Card variant="elevated" style={styles.appCard}>
+      <View style={styles.cardHeader}>
+        <View style={styles.petBadge}>
+          <MaterialCommunityIcons name="paw" size={16} color={colors.primaryDark} />
+          <Text style={styles.petBadgeText}>{item.petName}</Text>
+        </View>
+        <Badge
+          label={
+            item.status === 'confirmed' ? 'Confirmado ✓' :
+            item.status === 'completed' ? 'Completado' :
+            item.status === 'cancelled' ? 'Cancelado' : 'Pendiente'
+          }
+          variant={
+            item.status === 'confirmed' ? 'success' :
+            item.status === 'completed' ? 'info' :
+            item.status === 'cancelled' ? 'danger' : 'warning'
+          }
+        />
+      </View>
+
+      <Text style={styles.serviceType}>{typeLabel(item.type)}</Text>
+
+      <View style={styles.infoRow}>
+        <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textMuted} />
+        <Text style={styles.infoText}>
+          {new Date(item.date).toLocaleDateString('es-AR')} • {item.timeSlot === 'morning' ? 'Mañana (09:00 - 12:00)' : 'Tarde (16:00 - 19:00)'}
+        </Text>
+      </View>
+
+      {item.notes ? (
+        <Text style={styles.notes}>Nota: {item.notes}</Text>
+      ) : null}
+    </Card>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Turnos y Agenda 📅</Text>
+        <Text style={styles.title} numberOfLines={1}>Mis Turnos</Text>
         <Button
           title="Nuevo turno"
           onPress={() => setModalVisible(true)}
@@ -169,68 +223,43 @@ export const AppointmentsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {viewMode === 'calendar' ? (
+      {loading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : viewMode === 'calendar' ? (
         <CalendarView
-          appointments={[...appointments, ...PREVENTATIVE_HEALTH_EVENTS]}
+          appointments={appointments}
           onNewAppointment={() => setModalVisible(true)}
         />
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
-        {appointments.length === 0 ? (
-          <Card variant="elevated" style={styles.emptyCard}>
-            <MaterialCommunityIcons name="calendar-blank" size={60} color={colors.primary} />
-            <Text style={styles.emptyTitle}>No tenés turnos agendados</Text>
-            <Text style={styles.emptyDesc}>Agendá una consulta médica, vacunación o peluquería para tu mascota.</Text>
-            <Button
-              title="Pedir mi primer turno"
-              onPress={() => setModalVisible(true)}
-              variant="primary"
-              size="md"
-              style={{ marginTop: spacing.lg }}
-            />
-          </Card>
-        ) : (
-          appointments.map((app) => (
-            <Card key={app.id} variant="elevated" style={styles.appCard}>
-              <View style={styles.cardHeader}>
-                <View style={styles.petBadge}>
-                  <MaterialCommunityIcons name="paw" size={16} color={colors.primaryDark} />
-                  <Text style={styles.petBadgeText}>{app.petName}</Text>
-                </View>
-                <Badge
-                  label={app.status === 'confirmed' ? 'Confirmado ✓' : 'Pendiente'}
-                  variant={app.status === 'confirmed' ? 'success' : 'warning'}
-                />
-              </View>
-
-              <Text style={styles.serviceType}>
-                {app.type === 'vaccination' ? '💉 Vacunación' :
-                 app.type === 'grooming' ? '✂️ Peluquería' :
-                 app.type === 'emergency' ? '🚨 Urgencia' :
-                 app.type === 'castration' ? '🏥 Castración' : '🩺 Consulta General'}
-              </Text>
-
-              <View style={styles.infoRow}>
-                <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textMuted} />
-                <Text style={styles.infoText}>
-                  {new Date(app.date).toLocaleDateString('es-AR')} • {app.timeSlot === 'morning' ? 'Mañana (09:00 - 12:00)' : 'Tarde (16:00 - 19:00)'}
-                </Text>
-              </View>
-
-              {app.notes ? (
-                <Text style={styles.notes}>Nota: {app.notes}</Text>
-              ) : null}
+        <FlatList
+          data={appointments}
+          keyExtractor={(item) => item.id}
+          renderItem={renderAppointment}
+          contentContainerStyle={styles.content}
+          ListEmptyComponent={
+            <Card variant="elevated" style={styles.emptyCard}>
+              <MaterialCommunityIcons name="calendar-blank" size={60} color={colors.primary} />
+              <Text style={styles.emptyTitle}>No tenés turnos agendados</Text>
+              <Text style={styles.emptyDesc}>Agendá una consulta médica, vacunación o peluquería para tu mascota.</Text>
+              <Button
+                title="Pedir mi primer turno"
+                onPress={() => setModalVisible(true)}
+                variant="primary"
+                size="md"
+                style={{ marginTop: spacing.lg }}
+              />
             </Card>
-          ))
-        )}
-        </ScrollView>
+          }
+        />
       )}
 
       {/* Booking Modal */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Agendar Turno 🐾</Text>
+            <Text style={styles.modalTitle}>Agendar Turno</Text>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
             </TouchableOpacity>
@@ -239,32 +268,33 @@ export const AppointmentsScreen: React.FC = () => {
           <ScrollView contentContainerStyle={styles.modalContent}>
             {/* Pet selector */}
             <Text style={styles.label}>Seleccionar Mascota</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.petScroll}>
-              {pets.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.petCardSelect, selectedPet?.id === p.id && styles.petCardSelectActive]}
-                  onPress={() => setSelectedPet(p)}
-                >
-                  <MaterialCommunityIcons name={p.species === 'dog' ? 'dog' : 'cat'} size={24} color={selectedPet?.id === p.id ? colors.primaryDark : colors.textMuted} />
-                  <Text style={[styles.petSelectName, selectedPet?.id === p.id && styles.petSelectNameActive]}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {pets.length === 0 ? (
+              <Text style={styles.noPetsText}>
+                No tenés mascotas registradas. Agregalas desde Inicio.
+              </Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.petScroll}>
+                {pets.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.petCardSelect, selectedPet?.id === p.id && styles.petCardSelectActive]}
+                    onPress={() => setSelectedPet(p)}
+                  >
+                    <MaterialCommunityIcons name={p.species === 'dog' ? 'dog' : 'cat'} size={24} color={selectedPet?.id === p.id ? colors.primaryDark : colors.textMuted} />
+                    <Text style={[styles.petSelectName, selectedPet?.id === p.id && styles.petSelectNameActive]}>{p.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
 
             {/* Service Type */}
             <Text style={styles.label}>Tipo de Servicio</Text>
             <View style={styles.servicesGrid}>
-              {[
-                { id: 'general', label: '🩺 General' },
-                { id: 'vaccination', label: '💉 Vacuna' },
-                { id: 'grooming', label: '✂️ Peluquería' },
-                { id: 'castration', label: '🏥 Castración' },
-              ].map((s) => (
+              {SERVICE_OPTIONS.map((s) => (
                 <TouchableOpacity
                   key={s.id}
                   style={[styles.serviceOption, type === s.id && styles.serviceOptionActive]}
-                  onPress={() => setType(s.id as AppointmentType)}
+                  onPress={() => setType(s.id)}
                 >
                   <Text style={[styles.serviceOptionText, type === s.id && styles.serviceOptionTextActive]}>{s.label}</Text>
                 </TouchableOpacity>
@@ -274,10 +304,10 @@ export const AppointmentsScreen: React.FC = () => {
             {/* Date Selector */}
             <Text style={styles.label}>Seleccionar Fecha del Turno</Text>
             {Platform.OS === 'android' && (
-              <Button 
-                title={selectedDate.toLocaleDateString('es-AR')} 
-                onPress={() => setShowDatePicker(true)} 
-                variant="outline" 
+              <Button
+                title={selectedDate.toLocaleDateString('es-AR')}
+                onPress={() => setShowDatePicker(true)}
+                variant="outline"
                 style={{ marginBottom: spacing.md }}
                 icon={<MaterialCommunityIcons name="calendar" size={18} color={colors.primary} />}
               />
@@ -338,6 +368,15 @@ export const AppointmentsScreen: React.FC = () => {
           </ScrollView>
         </View>
       </Modal>
+      {/* Floating Action Button for New Appointment */}
+      <TouchableOpacity
+        style={styles.fabNewAppointment}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.85}
+      >
+        <MaterialCommunityIcons name="plus-circle" size={22} color="#FFF" />
+        <Text style={styles.fabText}>Nuevo turno</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -349,11 +388,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing['2xl'],
+    paddingTop: spacing.lg,
     paddingBottom: spacing.md,
   },
-  title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing['3xl'] },
+  title: { flex: 1, marginRight: spacing.sm, fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark, letterSpacing: 0.4 },
+  fabNewAppointment: {
+    position: 'absolute',
+    bottom: 24,
+    right: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: 30,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    zIndex: 999,
+  },
+  fabText: {
+    color: '#FFF',
+    fontFamily: fonts.nunito.bold,
+    fontSize: fontSizes.sm,
+    marginLeft: 6,
+  },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: 120, flexGrow: 1 },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyCard: { alignItems: 'center', padding: spacing['2xl'], marginTop: spacing.xl },
   emptyTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark, marginTop: spacing.md },
   emptyDesc: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.md, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
@@ -365,6 +428,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', alignItems: 'center' },
   infoText: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginLeft: spacing.xs },
   notes: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted, marginTop: spacing.xs, fontStyle: 'italic' },
+  noPetsText: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginBottom: spacing.md },
   modalContainer: { flex: 1, backgroundColor: colors.bgMain, paddingTop: spacing.xl },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
@@ -380,29 +444,12 @@ const styles = StyleSheet.create({
   serviceOptionActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   serviceOptionText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark },
   serviceOptionTextActive: { color: colors.accentDark },
-  dateTextActive: { color: '#FFF' },
   iosDatePickerContainer: { backgroundColor: '#FFF', borderRadius: 12, padding: spacing.sm, marginBottom: spacing.lg, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   slotRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
   slotCard: { flex: 1, paddingVertical: spacing.md, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard },
   slotCardActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   slotText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.xs, color: colors.textMuted },
   slotTextActive: { color: colors.primaryDark, fontFamily: fonts.nunito.bold },
-  dateChip: {
-    width: 64,
-    height: 72,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgCard,
-    marginRight: spacing.xs,
-  },
-  dateChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  dateDayName: { fontFamily: fonts.nunito.semiBold, fontSize: 10, color: colors.textMuted },
-  dateDayNum: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.md, color: colors.textDark, marginVertical: 2 },
-  dateMonth: { fontFamily: fonts.nunito.semiBold, fontSize: 10, color: colors.textMuted },
-  dateTextActive: { color: colors.textWhite },
   viewTabs: { flexDirection: 'row', paddingHorizontal: spacing.lg, marginBottom: spacing.sm, gap: spacing.sm },
   viewTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: borderRadius.full, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
   viewTabActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },

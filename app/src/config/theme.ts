@@ -1,45 +1,63 @@
 // ============================================================
 // Veterinaria La Plata — Design System / Theme
+// Dirección: premium, cálido, puro y de confianza.
+// Teal profundo (salud/confianza) + albaricoque cálido (cercanía)
+// sobre neutros limpios y casi blancos.
 // ============================================================
 
 export const colors = {
-  primary: '#4ECDC4',
-  primaryDark: '#3BAFA7',
-  primaryLight: '#A8E6CF',
-  primarySoft: '#E8FAF6',
+  // --- Primario: teal profundo (confianza, salud, pureza) ---
+  primary: '#0E9D96',
+  primaryDark: '#0A7C77',
+  primaryLight: '#5FC9C3',
+  primarySoft: '#E3F4F3',
 
-  accent: '#FF8C42',
-  accentDark: '#E67330',
-  accentLight: '#FFB380',
-  accentSoft: '#FFF0E5',
+  // --- Acento: albaricoque cálido (cercanía, energía suave) ---
+  accent: '#F09A5F',
+  accentDark: '#DD7D3E',
+  accentLight: '#F9C89B',
+  accentSoft: '#FCEFE2',
 
-  bgMain: '#FFFDF5',
+  // --- Fondos: limpios, casi blancos con un dejo cálido ---
+  bgMain: '#FBFCF9',
   bgCard: '#FFFFFF',
-  bgOverlay: 'rgba(0, 0, 0, 0.4)',
+  bgOverlay: 'rgba(15, 40, 39, 0.45)',
+  surfaceMuted: '#F1F6F4',
+  hairline: '#E3ECE9',
 
-  textDark: '#2D3436',
-  textMuted: '#636E72',
-  textLight: '#B2BEC3',
+  // --- Texto ---
+  textDark: '#1E2C2C',
+  textMuted: '#5B6D6B',
+  textLight: '#8FA3A1',
   textWhite: '#FFFFFF',
 
-  danger: '#FF6B6B',
-  dangerDark: '#EE5252',
-  dangerSoft: '#FFE8E8',
+  // --- Semánticos (más refinados y accesibles) ---
+  danger: '#E56B6B',
+  dangerDark: '#CE5555',
+  dangerSoft: '#FCE9E9',
 
-  success: '#51CF66',
-  successDark: '#40C057',
-  successSoft: '#E6F9ED',
+  success: '#3EAB77',
+  successDark: '#33925F',
+  successSoft: '#E5F4EC',
 
-  warning: '#FFD43B',
-  warningDark: '#FCC419',
-  warningSoft: '#FFF9DB',
+  warning: '#E2A93A',
+  warningDark: '#C8912A',
+  warningSoft: '#FBF3DE',
 
-  border: '#E8E8E8',
-  borderLight: '#F0F0F0',
-  divider: '#F5F5F5',
+  // --- Bordes y separadores ---
+  border: '#E5ECEA',
+  borderLight: '#ECF2F0',
+  divider: '#F1F6F4',
 
-  skeleton: '#E8E8E8',
-  skeletonHighlight: '#F5F5F5',
+  // --- Skeleton ---
+  skeleton: '#E6EEEC',
+  skeletonHighlight: '#F3F8F7',
+
+  // --- Gradientes premium (botones y superficies destacadas) ---
+  gradientPrimary: ['#16B1A9', '#0E9D96', '#0A7C77'] as [string, string, string],
+  gradientPrimaryDark: ['#0E9D96', '#0A7C77'] as [string, string],
+  gradientAccent: ['#F7A86B', '#F09A5F', '#DD7D3E'] as [string, string, string],
+  gradientHero: ['#FFFFFF', '#E9F6F4'] as [string, string],
 };
 
 export const fonts = {
@@ -64,7 +82,14 @@ export const fontSizes = {
   '2xl': 24,
   '3xl': 30,
   '4xl': 36,
-  '5xl': 48,
+  '5xl': 44,
+};
+
+export const letterSpacing = {
+  tight: -0.3,
+  normal: 0,
+  display: 0.4,
+  caption: 0.6,
 };
 
 export const spacing = {
@@ -79,41 +104,49 @@ export const spacing = {
 };
 
 export const borderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 28,
   full: 9999,
 };
 
 export const shadows = {
+  // Sombras suaves y en capas con un tinte esmeralda sutil
   sm: {
-    shadowColor: '#000',
+    shadowColor: 'rgba(15, 50, 48, 0.06)',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 1,
     shadowRadius: 3,
     elevation: 1,
   },
   md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowColor: 'rgba(15, 50, 48, 0.09)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
     elevation: 3,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
+    shadowColor: 'rgba(15, 50, 48, 0.11)',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 1,
+    shadowRadius: 28,
     elevation: 6,
   },
   xl: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 10,
+    shadowColor: 'rgba(15, 50, 48, 0.14)',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 1,
+    shadowRadius: 40,
+    elevation: 12,
+  },
+  focus: {
+    shadowColor: 'rgba(14, 157, 150, 0.25)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 2,
   },
 };
 
@@ -121,6 +154,7 @@ export const theme = {
   colors,
   fonts,
   fontSizes,
+  letterSpacing,
   spacing,
   borderRadius,
   shadows,

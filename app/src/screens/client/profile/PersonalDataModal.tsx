@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius } from '../../../config/theme';
 import { Button } from '../../../components/ui';
 import { User } from '../../../types';
-import { updateUserProfile } from '../../../services/dataService';
-import { uploadImageBase64 } from '../../../services/storageService';
+import { updateUserProfile } from '../../../services/userService';
+import { uploadImageBase64, uploadImage } from '../../../services/storageService';
 import { useAuthStore } from '../../../store/authStore';
 
 interface PersonalDataModalProps {
@@ -21,6 +21,16 @@ export const PersonalDataModal: React.FC<PersonalDataModalProps> = ({ visible, o
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sincroniza el formulario cada vez que se abre el modal
+  React.useEffect(() => {
+    if (visible) {
+      setName(user?.name || '');
+      setPhone(user?.phone || '');
+      setImageUri(null);
+      setImageBase64(null);
+    }
+  }, [visible, user?.name, user?.phone]);
 
   const pickImage = async () => {
     try {
@@ -43,20 +53,30 @@ export const PersonalDataModal: React.FC<PersonalDataModalProps> = ({ visible, o
 
   const handleSave = async () => {
     if (!user) return;
+    if (!name.trim()) {
+      Alert.alert('Error', 'Ingresá tu nombre');
+      return;
+    }
     setIsSaving(true);
     let newAvatarUrl = user.avatarUrl;
 
-    if (imageBase64) {
-      const fileName = `user-${user.id}-${Date.now()}.jpg`;
-      newAvatarUrl = await uploadImageBase64(imageBase64, `avatars/${user.id}/${fileName}`);
-    } else if (imageUri) {
-      const fileName = `user-${user.id}-${Date.now()}.jpg`;
-      newAvatarUrl = await uploadImage(imageUri, `avatars/${user.id}/${fileName}`);
-    }
+    try {
+      if (imageBase64) {
+        const fileName = `user-${user.id}-${Date.now()}.jpg`;
+        newAvatarUrl = await uploadImageBase64(imageBase64, `avatars/${user.id}/${fileName}`);
+      } else if (imageUri) {
+        const fileName = `user-${user.id}-${Date.now()}.jpg`;
+        newAvatarUrl = await uploadImage(imageUri, `avatars/${user.id}/${fileName}`);
+      }
 
-    await updateUserProfile(user.id, { name, phone, avatarUrl: newAvatarUrl });
-    setIsSaving(false);
-    onClose();
+      await updateUserProfile(user.id, { name: name.trim(), phone: phone.trim(), avatarUrl: newAvatarUrl });
+      onClose();
+    } catch (error) {
+      console.log('Error saving personal data', error);
+      Alert.alert('Error', 'No se pudieron guardar los cambios. Intentá de nuevo.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

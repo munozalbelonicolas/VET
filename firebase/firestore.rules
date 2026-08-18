@@ -47,14 +47,20 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      return isAdmin() || isVet() || isReceptionist();
+      return isAdmin() || isVet() || isReceptionist() || isGroomer();
     }
 
     // --- Users Collection ---
     match /users/{userId} {
+      // Un usuario solo puede crearse a sí mismo y siempre con rol 'client'
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'client';
       allow read: if isOwner(userId) || isStaff();
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
+      // El dueño puede actualizar su perfil pero nunca cambiar su rol
+      allow update: if isAdmin()
+        || (isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'id', 'email']));
       allow delete: if isAdmin();
     }
 
@@ -64,9 +70,12 @@ service cloud.firestore {
         resource.data.ownerId == request.auth.uid ||
         isVet() || isAdmin() || isReceptionist() || isGroomer()
       );
-      allow create: if isAuthenticated();
+      // Un cliente solo puede crear mascotas que le pertenezcan
+      allow create: if isAuthenticated()
+        && (request.resource.data.ownerId == request.auth.uid || isStaff());
       allow update: if isAuthenticated() && (
-        resource.data.ownerId == request.auth.uid ||
+        (resource.data.ownerId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['searchTokens', 'createdAt'])) ||
         isVet() || isAdmin()
       );
       allow delete: if isAdmin() || (
@@ -81,7 +90,14 @@ service cloud.firestore {
         isVet() || isAdmin() || isReceptionist() ||
         (isGroomer() && resource.data.type == 'grooming')
       );
-      allow create: if isAuthenticated();
+      // El cliente solo puede crear turnos para mascotas propias
+      allow create: if isAuthenticated() && (
+        isStaff()
+        || (isClient()
+          && request.resource.data.ownerId == request.auth.uid
+          && exists(/databases/$(database)/documents/pets/$(request.resource.data.petId))
+          && get(/databases/$(database)/documents/pets/$(request.resource.data.petId)).data.ownerId == request.auth.uid)
+      );
       allow update: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid ||
         isVet() || isAdmin() || isReceptionist()
@@ -94,18 +110,17 @@ service cloud.firestore {
     match /medicalRecords/{recordId} {
       allow read: if isAuthenticated() && (
         isVet() || isAdmin() ||
-        // Client can read if it belongs to their pet
         exists(/databases/$(database)/documents/pets/$(resource.data.petId)) &&
         get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid
       );
-      allow create: if isVet() || isAdmin();
-      allow update: if isVet() || isAdmin();
+      allow create: if (isVet() || isAdmin())
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if (isVet() || isAdmin())
+        && request.resource.data.updatedBy == request.auth.uid;
       allow delete: if isAdmin();
     }
 
     // --- Grooming Records Collection ---
-    // Groomers, vets, and admins can read/write.
-    // Clients can read their own pets' grooming records.
     match /groomingRecords/{recordId} {
       allow read: if isAuthenticated() && (
         isGroomer() || isVet() || isAdmin() ||
@@ -115,6 +130,43 @@ service cloud.firestore {
       allow create: if isGroomer() || isVet() || isAdmin();
       allow update: if isGroomer() || isVet() || isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // --- Clinical Templates Collection ---
+    // Solo staff puede leer; vet/admin escriben
+    match /clinicalTemplates/{templateId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isVet() || isAdmin();
+    }
+
+    // --- Prescriptions Collection ---
+    match /prescriptions/{prescriptionId} {
+      allow read: if isAuthenticated() && (
+        isVet() || isAdmin() ||
+        exists(/databases/$(database)/documents/pets/$(resource.data.petId)) &&
+        get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid
+      );
+      allow create: if isVet() || isAdmin();
+      allow update: if isVet() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- Follow-ups Collection ---
+    match /followUps/{followUpId} {
+      allow read: if isAuthenticated() && (
+        isVet() || isAdmin() || isReceptionist()
+      );
+      allow create: if isVet() || isAdmin();
+      allow update: if isVet() || isAdmin() || isReceptionist();
+      allow delete: if isAdmin();
+    }
+
+    // --- Waiting Room Queue Collection ---
+    match /waitingRoom/{queueItemId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff();
+      allow update: if isStaff();
+      allow delete: if isAdmin() || isReceptionist();
     }
 
     // --- Products Collection ---
@@ -130,7 +182,9 @@ service cloud.firestore {
         resource.data.clientId == request.auth.uid ||
         isAdmin() || isReceptionist()
       );
-      allow create: if isAuthenticated();
+      // El cliente solo puede crear pedidos a su nombre
+      allow create: if isAuthenticated()
+        && (request.resource.data.clientId == request.auth.uid || isStaff());
       allow update: if isAuthenticated() && (
         resource.data.clientId == request.auth.uid ||
         isAdmin() || isReceptionist()
@@ -143,7 +197,9 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid || isAdmin()
       );
-      allow create: if isAdmin() || isVet() || isReceptionist();
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || isAdmin() || isVet() || isReceptionist()
+      );
       allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow delete: if isAdmin();
     }
@@ -152,6 +208,12 @@ service cloud.firestore {
     match /campaigns/{campaignId} {
       allow read: if isAdmin();
       allow create, update, delete: if isAdmin();
+    }
+
+    // --- Admin Logs (auditoría) ---
+    match /adminLogs/{logId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
     }
 
     // --- Employees Collection ---

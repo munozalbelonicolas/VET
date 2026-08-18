@@ -12,7 +12,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 import { Card, Badge, Button } from '../../components/ui';
-import { QueueItem, getQueue } from '../../services/waitingRoomService';
+import { QueueItem, subscribeToQueue } from '../../services/waitingRoomService';
 
 interface WaitingRoomTVDisplayProps {
   onClose?: () => void;
@@ -23,22 +23,19 @@ export const WaitingRoomTVDisplay: React.FC<WaitingRoomTVDisplayProps> = ({ onCl
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    loadQueueData();
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-      loadQueueData();
-    }, 3000); // refresh every 3 seconds for live TV display
+    // Tiempo en vivo
+    const clock = setInterval(() => setCurrentTime(new Date()), 1000);
+    // Cola en tiempo real (Firestore onSnapshot)
+    const unsubscribe = subscribeToQueue((items) => setQueue(items));
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(clock);
+      unsubscribe();
+    };
   }, []);
 
-  const loadQueueData = async () => {
-    const data = await getQueue();
-    setQueue([...data]);
-  };
-
-  const currentlyCalling = queue.find(q => q.status === 'calling' || q.status === 'in_consultation') || queue[0];
-  const waitingQueue = queue.filter(q => q.id !== currentlyCalling?.id && q.status === 'waiting');
+  const activePatient = queue.find(q => q.status === 'calling' || q.status === 'in_consultation');
+  const waitingQueue = queue.filter(q => q.status === 'waiting');
 
   return (
     <View style={styles.tvContainer}>
@@ -70,35 +67,35 @@ export const WaitingRoomTVDisplay: React.FC<WaitingRoomTVDisplayProps> = ({ onCl
 
       <ScrollView contentContainerStyle={styles.tvContent}>
         {/* BIG CALLOUT BOX: CURRENTLY CALLED PATIENT */}
-        {currentlyCalling ? (
+        {activePatient ? (
           <View style={styles.callingBox}>
             <View style={styles.callingBadgeHeader}>
               <MaterialCommunityIcons name="bullhorn-outline" size={24} color="#FFF" />
               <Text style={styles.callingBadgeText}>
-                {currentlyCalling.status === 'calling' ? '🔔 ¡PACIENTE LLAMADO!' : '🩺 EN ATENCIÓN'}
+                {activePatient.status === 'calling' ? '🔔 ¡PACIENTE LLAMADO!' : '🩺 EN ATENCIÓN'}
               </Text>
             </View>
 
             <View style={styles.callingMainRow}>
               <View style={styles.ticketPill}>
-                <Text style={styles.ticketText}>{currentlyCalling.ticketNumber}</Text>
+                <Text style={styles.ticketText}>{activePatient.ticketNumber}</Text>
               </View>
 
               <View style={styles.patientInfo}>
                 <Text style={styles.petNameLarge}>
-                  {currentlyCalling.petName} 🐾
+                  {activePatient.petName} 🐾
                 </Text>
                 <Text style={styles.ownerTextLarge}>
-                  Dueño/a: <Text style={{ color: colors.white }}>{currentlyCalling.ownerName}</Text>
+                  Dueño/a: <Text style={{ color: colors.textWhite }}>{activePatient.ownerName}</Text>
                 </Text>
                 <Text style={styles.reasonTextLarge}>
-                  Motivo: {currentlyCalling.reason}
+                  Motivo: {activePatient.reason}
                 </Text>
               </View>
 
               <View style={styles.roomBox}>
                 <Text style={styles.roomLabel}>PASAR A:</Text>
-                <Text style={styles.roomText}>{currentlyCalling.doctorOrRoom || 'Consultorio 1'}</Text>
+                <Text style={styles.roomText}>{activePatient.doctorOrRoom || 'Consultorio 1'}</Text>
               </View>
             </View>
           </View>

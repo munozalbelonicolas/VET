@@ -363,18 +363,19 @@ function HowItWorks() {
 // ============================================================
 // Testimonials
 // ============================================================
+const TESTIMONIALS = [
+  { name: 'María González', pet: 'Luna 🐕', text: 'Increíble poder llevar el historial de Luna en el celular. Los recordatorios de vacunas me salvaron más de una vez. ¡La mejor veterinaria de La Plata!', rating: 5 },
+  { name: 'Carlos Rodríguez', pet: 'Michi 🐈', text: 'El Dr. Fernández es un genio. La app es súper práctica para pedir turnos y comprar la comida de Michi sin salir de casa.', rating: 5 },
+  { name: 'Ana Martínez', pet: 'Rocky 🐕', text: 'Rocky sale hermoso de la peluquería cada vez. La app me recuerda cuándo toca el próximo baño. Súper recomendable.', rating: 5 },
+  { name: 'Lucía Fernández', pet: 'Nina 🐈', text: 'Me encanta poder ver el peso de Nina mes a mes y que la vet me mande recordatorios. La castración salió perfecto, excelente seguimiento.', rating: 5 },
+];
+
 function Testimonials() {
   const [current, setCurrent] = useState(0);
-  const testimonials = [
-    { name: 'María González', pet: 'Luna 🐕', text: 'Increíble poder llevar el historial de Luna en el celular. Los recordatorios de vacunas me salvaron más de una vez. ¡La mejor veterinaria de La Plata!', rating: 5 },
-    { name: 'Carlos Rodríguez', pet: 'Michi 🐈', text: 'El Dr. Fernández es un genio. La app es súper práctica para pedir turnos y comprar la comida de Michi sin salir de casa.', rating: 5 },
-    { name: 'Ana Martínez', pet: 'Rocky 🐕', text: 'Rocky sale hermoso de la peluquería cada vez. La app me recuerda cuándo toca el próximo baño. Súper recomendable.', rating: 5 },
-    { name: 'Lucía Fernández', pet: 'Nina 🐈', text: 'Me encanta poder ver el peso de Nina mes a mes y que la vet me mande recordatorios. La castración salió perfecto, excelente seguimiento.', rating: 5 },
-  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % testimonials.length);
+      setCurrent((prev) => (prev + 1) % TESTIMONIALS.length);
     }, 5000);
     return () => clearInterval(timer);
   }, []);
@@ -398,22 +399,22 @@ function Testimonials() {
 
             <div className="relative z-10">
               <div className="flex gap-1 mb-6">
-                {Array.from({ length: testimonials[current].rating }).map((_, i) => (
+                {Array.from({ length: TESTIMONIALS[current].rating }).map((_, i) => (
                   <span key={i} className="text-yellow-400 text-xl">⭐</span>
                 ))}
               </div>
 
               <p className="text-lg md:text-xl text-text-dark leading-relaxed mb-8 font-nunito italic">
-                "{testimonials[current].text}"
+                "{TESTIMONIALS[current].text}"
               </p>
 
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center text-white text-xl font-bold font-nunito">
-                  {testimonials[current].name.charAt(0)}
+                  {TESTIMONIALS[current].name.charAt(0)}
                 </div>
                 <div>
-                  <div className="font-bold text-text-dark font-quicksand">{testimonials[current].name}</div>
-                  <div className="text-text-muted font-nunito">Dueña de {testimonials[current].pet}</div>
+                  <div className="font-bold text-text-dark font-quicksand">{TESTIMONIALS[current].name}</div>
+                  <div className="text-text-muted font-nunito">Dueña de {TESTIMONIALS[current].pet}</div>
                 </div>
               </div>
             </div>
@@ -421,7 +422,7 @@ function Testimonials() {
 
           {/* Dots */}
           <div className="flex justify-center gap-3 mt-8">
-            {testimonials.map((_, i) => (
+            {TESTIMONIALS.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setCurrent(i)}

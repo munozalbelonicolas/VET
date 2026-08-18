@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius } from '../../../config/theme';
 import { Button } from '../../../components/ui';
@@ -9,19 +9,44 @@ interface HelpCenterModalProps {
   onClose: () => void;
 }
 
+const VET_WHATSAPP = process.env.EXPO_PUBLIC_VET_WHATSAPP || '';
+const VET_PHONE = process.env.EXPO_PUBLIC_VET_PHONE || '';
+
 export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({ visible, onClose }) => {
   const faqs = [
     { q: '¿Cómo pido un turno?', a: 'Podés pedir turnos para clínica, vacunación o peluquería directamente desde la sección "Turnos" en el menú inferior.' },
-    { q: '¿Hacen envíos a domicilio?', a: 'Sí, realizamos envíos a todo el casco urbano de La Plata en compras superiores a $15.000 de manera gratuita.' },
-    { q: '¿Tienen guardería o internación?', a: 'Actualmente no contamos con servicio de internación 24hs ni guardería.' },
+    { q: '¿Hacen envíos a domicilio?', a: 'Sí, realizamos envíos al casco urbano de La Plata. El costo y la disponibilidad se informan al confirmar tu compra.' },
+    { q: '¿Tienen guardería o internación?', a: 'Consultá por disponibilidad de internación y servicios adicionales directamente con la veterinaria.' },
   ];
 
+  const openUrl = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Error', 'No se pudo abrir este enlace en tu dispositivo.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      console.log('Linking error', error);
+      Alert.alert('Error', 'No se pudo abrir este enlace en tu dispositivo.');
+    }
+  };
+
   const handleWhatsApp = () => {
-    Linking.openURL('https://wa.me/5492215551234?text=Hola,%20necesito%20ayuda%20con%20la%20App%20de%20Veterinaria%20La%20Plata');
+    if (!VET_WHATSAPP) {
+      Alert.alert('Información', 'WhatsApp no está configurado aún.');
+      return;
+    }
+    openUrl(`https://wa.me/${VET_WHATSAPP}?text=${encodeURIComponent('Hola, necesito ayuda con la App de Veterinaria La Plata')}`);
   };
 
   const handleCall = () => {
-    Linking.openURL('tel:+5492215551234');
+    if (!VET_PHONE) {
+      Alert.alert('Información', 'El teléfono no está configurado aún.');
+      return;
+    }
+    openUrl(`tel:${VET_PHONE}`);
   };
 
   return (
@@ -39,12 +64,14 @@ export const HelpCenterModal: React.FC<HelpCenterModalProps> = ({ visible, onClo
               title="WhatsApp"
               variant="primary"
               onPress={handleWhatsApp}
+              disabled={!VET_WHATSAPP}
               style={{ flex: 1, marginRight: spacing.sm }}
             />
             <Button
               title="Llamar"
               variant="outline"
               onPress={handleCall}
+              disabled={!VET_PHONE}
               style={{ flex: 1 }}
             />
           </View>

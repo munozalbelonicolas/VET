@@ -16,7 +16,7 @@ import {
   getDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { auth, db, DEMO_MODE } from '../config/firebase';
 import { User, UserRole } from '../types';
 
 // --- Sign up with email ---
@@ -155,7 +155,7 @@ export function onAuthChanged(
   return onAuthStateChanged(auth, callback);
 }
 
-// --- Mock auth for development (when Firebase is not configured) ---
+// --- Mock auth for DEMO_MODE (solo disponible cuando EXPO_PUBLIC_DEMO_MODE=true) ---
 const MOCK_USERS: Record<string, User> = {
   'admin@soyveterinario.com': {
     id: 'admin-001',
@@ -225,9 +225,11 @@ const MOCK_USERS: Record<string, User> = {
 };
 
 export function mockLogin(email: string): User | null {
+  if (!DEMO_MODE) return null;
   return MOCK_USERS[email.toLowerCase()] ?? null;
 }
 
 export function getMockUsers(): Record<string, User> {
+  if (!DEMO_MODE) return {};
   return MOCK_USERS;
 }

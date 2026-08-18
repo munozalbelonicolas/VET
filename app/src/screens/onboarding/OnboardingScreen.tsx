@@ -141,7 +141,7 @@ const ShopIllustration = () => (
 const slides: Slide[] = [
   {
     id: '1',
-    title: '¡Bienvenido a\nVeterinaria La Plata! 🐾',
+    title: '¡Bienvenido a\nVeterinaria La Plata!',
     description: 'El cuidado que tu mascota merece,\nal alcance de tu mano.',
     illustration: <WelcomeIllustration />,
     bgColor: colors.bgMain,
@@ -155,14 +155,14 @@ const slides: Slide[] = [
   },
   {
     id: '3',
-    title: 'Pedí turnos\nen segundos ⏰',
+    title: 'Pedí turnos\nen segundos',
     description: 'Agendá consultas, vacunaciones\ny peluquería desde tu celular.',
     illustration: <TurnosIllustration />,
     bgColor: colors.bgMain,
   },
   {
     id: '4',
-    title: 'Tu petshop\nen tu bolsillo 🛒',
+    title: 'Tu petshop\nen tu bolsillo',
     description: 'Comprá alimentos, accesorios y más.\nRecibilos en la puerta de tu casa.',
     illustration: <ShopIllustration />,
     bgColor: colors.bgMain,
@@ -268,7 +268,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
           )}
 
           <Button
-            title={isLastSlide ? 'Comenzar 🐾' : 'Siguiente'}
+            title={isLastSlide ? 'Comenzar' : 'Siguiente'}
             onPress={goToNext}
             variant={isLastSlide ? 'accent' : 'primary'}
             size="lg"

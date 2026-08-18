@@ -18,7 +18,7 @@ import { colors, fonts, fontSizes, spacing, shadows } from '../../config/theme';
 import { Button, Input } from '../../components/ui';
 import { Pet, PetSpecies, PetSex } from '../../types';
 import { addPet } from '../../services/dataService';
-import { uploadImageBase64 } from '../../services/storageService';
+import { uploadImageBase64, uploadImage } from '../../services/storageService';
 import { useAuthStore } from '../../store/authStore';
 
 interface AddPetModalProps {
@@ -70,8 +70,14 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({ onClose, onPetAdded })
       return;
     }
 
-    const yrs = parseInt(ageYears, 10) || 0;
-    const mths = parseInt(ageMonths, 10) || 0;
+    const yrs = Math.max(0, parseInt(ageYears, 10) || 0);
+    const mths = Math.max(0, parseInt(ageMonths, 10) || 0);
+
+    if (yrs === 0 && mths === 0) {
+      Alert.alert('Error', 'Ingresá la edad de la mascota');
+      return;
+    }
+
     const calculatedBirthDate = new Date();
     calculatedBirthDate.setFullYear(calculatedBirthDate.getFullYear() - yrs);
     calculatedBirthDate.setMonth(calculatedBirthDate.getMonth() - mths);
@@ -79,29 +85,35 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({ onClose, onPetAdded })
     setLoading(true);
     try {
       let avatarUrl = '';
-      if (imageBase64) {
+      if (imageBase64 || imageUri) {
         setUploadingImage(true);
-        // Create a temporary ID or use timestamp for the new pet image
-        const fileName = `pet-${user.id}-${Date.now()}.jpg`;
-        avatarUrl = await uploadImageBase64(imageBase64, `pets/avatars/${fileName}`);
-        setUploadingImage(false);
-      } else if (imageUri) {
-        setUploadingImage(true);
-        const fileName = `pet-${user.id}-${Date.now()}.jpg`;
-        avatarUrl = await uploadImage(imageUri, `pets/avatars/${fileName}`);
-        setUploadingImage(false);
+        try {
+          const fileName = `pet-${user?.id || 'anon'}-${Date.now()}.jpg`;
+          if (imageBase64) {
+            avatarUrl = await uploadImageBase64(imageBase64, `pets/avatars/${fileName}`);
+          } else if (imageUri) {
+            avatarUrl = await uploadImage(imageUri, `pets/avatars/${fileName}`);
+          }
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      if (!user?.id) {
+        Alert.alert('Error', 'Debés iniciar sesión para registrar una mascota');
+        return;
       }
 
       const newPet = await addPet({
-        ownerId: user?.id || 'client-001',
-        name,
+        ownerId: user.id,
+        name: name.trim(),
         species,
-        breed,
+        breed: breed.trim(),
         birthDate: calculatedBirthDate,
         ageYears: yrs,
         ageMonths: mths,
         sex,
-        currentWeight: parseFloat(weight) || 0,
+        currentWeight: Math.max(0, parseFloat(weight) || 0),
         healthStatus: 'green',
         notes,
         avatarUrl,
@@ -120,7 +132,7 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({ onClose, onPetAdded })
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Agregar Mascota 🐾</Text>
+        <Text style={styles.title}>Agregar Mascota</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
           <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
         </TouchableOpacity>

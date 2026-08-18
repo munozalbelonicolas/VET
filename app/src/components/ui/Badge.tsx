@@ -20,8 +20,8 @@ const variantColors: Record<BadgeVariant, { bg: string; text: string }> = {
   success: { bg: colors.successSoft, text: colors.successDark },
   warning: { bg: colors.warningSoft, text: colors.warningDark },
   danger: { bg: colors.dangerSoft, text: colors.dangerDark },
-  muted: { bg: colors.divider, text: colors.textMuted },
-  info: { bg: colors.primarySoft, text: colors.primaryDark },
+  muted: { bg: colors.surfaceMuted, text: colors.textMuted },
+  info: { bg: colors.surfaceMuted, text: colors.primaryDark },
 };
 
 const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary', size = 'sm', style }) => {
@@ -52,18 +52,19 @@ const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary', size = 'sm', 
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
     borderRadius: borderRadius.full,
     alignSelf: 'flex-start',
   },
   badgeMd: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
   },
   text: {
     fontFamily: fonts.nunito.bold,
     fontSize: fontSizes.xs,
+    letterSpacing: 0.2,
   },
   textMd: {
     fontSize: fontSizes.sm,

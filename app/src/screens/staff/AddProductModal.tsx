@@ -14,24 +14,45 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, shadows } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 import { Button, Input } from '../../components/ui';
-import { addProduct } from '../../services/shopService';
+import { addProduct, updateProduct } from '../../services/shopService';
 import { uploadImage } from '../../services/storageService';
+import { Product, ProductCategory, PetSpecies } from '../../types';
+
+const CATEGORIES: { id: ProductCategory; label: string }[] = [
+  { id: 'food', label: '🍖 Alimentos' },
+  { id: 'medication', label: '💊 Farmacia' },
+  { id: 'accessories', label: '🧸 Accesorios' },
+  { id: 'hygiene', label: '🧴 Higiene' },
+  { id: 'toys', label: '🎾 Juguetes' },
+];
+
+const SPECIES_OPTIONS: { id: PetSpecies | 'both'; label: string }[] = [
+  { id: 'both', label: 'Todos' },
+  { id: 'dog', label: '🐶 Perro' },
+  { id: 'cat', label: '🐱 Gato' },
+];
 
 interface AddProductModalProps {
   onClose: () => void;
   onProductAdded: () => void;
+  editingProduct?: Product | null;
 }
 
-export const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onProductAdded }) => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [brand, setBrand] = useState('');
-  const [price, setPrice] = useState('');
-  const [stock, setStock] = useState('');
+export const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onProductAdded, editingProduct }) => {
+  const isEditing = !!editingProduct;
+  const [name, setName] = useState(editingProduct?.name || '');
+  const [description, setDescription] = useState(editingProduct?.description || '');
+  const [brand, setBrand] = useState(editingProduct?.brand || '');
+  const [price, setPrice] = useState(editingProduct ? String(editingProduct.price) : '');
+  const [salePrice, setSalePrice] = useState(editingProduct?.salePrice ? String(editingProduct.salePrice) : '');
+  const [stock, setStock] = useState(editingProduct ? String(editingProduct.stock) : '');
+  const [category, setCategory] = useState<ProductCategory>(editingProduct?.category || 'accessories');
+  const [species, setSpecies] = useState<PetSpecies | 'both'>(editingProduct?.species || 'both');
   const [imageUri, setImageUri] = useState<string | null>(null);
-  
+  const [hasOffer, setHasOffer] = useState(!!editingProduct?.salePrice);
+
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -53,37 +74,65 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onPro
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !price.trim() || !imageUri) {
+    if (!name.trim() || !price.trim() || (!isEditing && !imageUri)) {
       Alert.alert('Error', 'Por favor completá los campos requeridos y seleccioná una imagen.');
       return;
     }
+    const parsedPrice = parseFloat(price.replace(/\./g, '').replace(',', '.')) || 0;
+    if (parsedPrice <= 0) {
+      Alert.alert('Error', 'Ingresá un precio válido mayor a cero.');
+      return;
+    }
+    const parsedSalePrice = hasOffer ? (parseFloat(salePrice.replace(/\./g, '').replace(',', '.')) || 0) : undefined;
+    if (hasOffer && (!parsedSalePrice || parsedSalePrice <= 0)) {
+      Alert.alert('Error', 'Ingresá un precio de oferta válido.');
+      return;
+    }
+    if (hasOffer && (parsedSalePrice ?? 0) >= parsedPrice) {
+      Alert.alert('Error', 'El precio de oferta debe ser menor al precio original.');
+      return;
+    }
+    const parsedStock = Math.max(0, parseInt(stock, 10) || 0);
 
     setLoading(true);
     try {
-      setUploadingImage(true);
-      const fileName = `product-${Date.now()}.jpg`;
-      const publicUrl = await uploadImage(imageUri, `shop/products/${fileName}`);
-      setUploadingImage(false);
+      let images: string[] = editingProduct?.images?.filter((i) => typeof i === 'string') || [];
+      if (imageUri) {
+        setUploadingImage(true);
+        try {
+          const fileName = `product-${Date.now()}.jpg`;
+          const publicUrl = await uploadImage(imageUri, `shop/products/${fileName}`);
+          if (publicUrl) images = [publicUrl];
+        } finally {
+          setUploadingImage(false);
+        }
+      }
 
-      await addProduct({
-        name,
+      const payload = {
+        name: name.trim(),
         description,
-        brand,
-        price: parseFloat(price) || 0,
-        stock: parseInt(stock, 10) || 0,
-        category: 'accessories', // Default for now
-        species: 'both',
+        brand: brand.trim(),
+        price: parsedPrice,
+        salePrice: parsedSalePrice,
+        stock: parsedStock,
+        category,
+        species,
         variants: [],
-        images: [publicUrl],
+        images,
         active: true,
-      });
+      };
 
-      Alert.alert('¡Éxito! 🛒', `El producto ${name} se publicó en la tienda.`);
+      if (isEditing && editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+        Alert.alert('¡Éxito! 🛒', `El producto ${name} fue actualizado.`);
+      } else {
+        await addProduct(payload);
+        Alert.alert('¡Éxito! 🛒', `El producto ${name} se publicó en la tienda.`);
+      }
       onProductAdded();
       onClose();
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar el producto.');
-      setUploadingImage(false);
     } finally {
       setLoading(false);
     }
@@ -92,7 +141,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onPro
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Nuevo Producto 📦</Text>
+        <Text style={styles.title}>{isEditing ? 'Editar Producto 📦' : 'Nuevo Producto 📦'}</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
           <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
         </TouchableOpacity>
@@ -152,6 +201,51 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onPro
           </View>
         </View>
 
+        {/* Oferta */}
+        <TouchableOpacity style={styles.offerToggle} onPress={() => setHasOffer((v) => !v)}>
+          <MaterialCommunityIcons
+            name={hasOffer ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+            size={22}
+            color={hasOffer ? colors.accent : colors.textMuted}
+          />
+          <Text style={styles.offerToggleText}>Publicar con precio de oferta (sale)</Text>
+        </TouchableOpacity>
+        {hasOffer && (
+          <Input
+            label="Precio de oferta ($)"
+            placeholder="Ej: 49900"
+            value={salePrice}
+            onChangeText={setSalePrice}
+            keyboardType="numeric"
+          />
+        )}
+
+        <Text style={styles.label}>Categoría</Text>
+        <View style={styles.selectorRow}>
+          {CATEGORIES.map((c) => (
+            <TouchableOpacity
+              key={c.id}
+              style={[styles.selectorChip, category === c.id && styles.selectorChipActive]}
+              onPress={() => setCategory(c.id)}
+            >
+              <Text style={[styles.selectorChipText, category === c.id && styles.selectorChipTextActive]}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.label}>Especie</Text>
+        <View style={styles.selectorRow}>
+          {SPECIES_OPTIONS.map((s) => (
+            <TouchableOpacity
+              key={s.id}
+              style={[styles.selectorChip, species === s.id && styles.selectorChipActive]}
+              onPress={() => setSpecies(s.id)}
+            >
+              <Text style={[styles.selectorChipText, species === s.id && styles.selectorChipTextActive]}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <Input
           label="Descripción"
           placeholder="Detalles del producto..."
@@ -184,6 +278,13 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.md },
   label: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark, marginBottom: spacing.xs },
   row: { flexDirection: 'row', gap: spacing.md },
+  offerToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  offerToggleText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.sm, color: colors.textDark },
+  selectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.md },
+  selectorChip: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: borderRadius.full, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
+  selectorChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  selectorChipText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.xs, color: colors.textMuted },
+  selectorChipTextActive: { color: colors.primaryDark, fontFamily: fonts.nunito.bold },
   footer: { padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: "#FFF" },
   
   imageContainer: { alignSelf: 'center', marginVertical: spacing.md, position: 'relative' },

@@ -31,6 +31,28 @@ interface ChatbotScreenProps {
   onClose: () => void;
 }
 
+const calculateAge = (birthDate?: Date): { years: number; months: number } => {
+  if (!birthDate) return { years: 0, months: 0 };
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let years = today.getFullYear() - birth.getFullYear();
+  let months = today.getMonth() - birth.getMonth();
+  if (months < 0 || (months === 0 && today.getDate() < birth.getDate())) {
+    years--;
+    months += 12;
+  }
+  return { years: Math.max(0, years), months: Math.max(0, months) };
+};
+
+const healthLabel = (status?: string): string => {
+  switch (status) {
+    case 'green': return 'Excelente';
+    case 'yellow': return 'Atención';
+    case 'red': return 'Requiere control';
+    default: return 'Desconocido';
+  }
+};
+
 export const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ onClose }) => {
   const { user } = useAuthStore();
   const [pets, setPets] = useState<Pet[]>([]);
@@ -52,20 +74,24 @@ export const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ onClose }) => {
   }, []);
 
   const loadUserPets = async () => {
-    const userId = user?.id || 'client-001';
-    const userPets = await getPetsByOwner(userId);
-    setPets(userPets);
+    if (!user?.id) return;
+    try {
+      const userPets = await getPetsByOwner(user.id);
+      setPets(userPets);
 
-    if (userPets.length > 0) {
-      const pet = userPets[0];
-      setMessages([
-        {
-          id: '1',
-          text: `¡Hola ${user?.name?.split(' ')[0] || ''}! 🐾 Veo que tenés a ${pet.name} (${pet.breed}, ${pet.currentWeight} kg). ¿En qué puedo ayudarte hoy con ${pet.name}?`,
-          isUser: false,
-          timestamp: new Date(),
-        },
-      ]);
+      if (userPets.length > 0) {
+        const pet = userPets[0];
+        setMessages([
+          {
+            id: '1',
+            text: `¡Hola ${user?.name?.split(' ')[0] || ''}! 🐾 Veo que tenés a ${pet.name} (${pet.breed}, ${pet.currentWeight} kg). ¿En qué puedo ayudarte hoy con ${pet.name}?`,
+            isUser: false,
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    } catch (error) {
+      console.log('loadUserPets error:', error);
     }
   };
 
@@ -83,20 +109,6 @@ export const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ onClose }) => {
     setInputText('');
     setLoading(true);
 
-    // Calculate exact age from birthDate
-    const calculateAge = (birthDate?: Date) => {
-      if (!birthDate) return { years: 0, months: 4 };
-      const today = new Date();
-      const birth = new Date(birthDate);
-      let years = today.getFullYear() - birth.getFullYear();
-      let months = today.getMonth() - birth.getMonth();
-      if (months < 0 || (months === 0 && today.getDate() < birth.getDate())) {
-        years--;
-        months += 12;
-      }
-      return { years: Math.max(0, years), months: Math.max(0, months) };
-    };
-
     // Build context object
     const userContext: UserContext = {
       userName: user?.name || 'Cliente',
@@ -109,7 +121,7 @@ export const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ onClose }) => {
           currentWeight: p.currentWeight,
           ageYears: p.ageYears !== undefined ? p.ageYears : calculatedAge.years,
           ageMonths: p.ageMonths !== undefined ? p.ageMonths : calculatedAge.months,
-          healthStatus: p.healthStatus || 'Excelente',
+          healthStatus: healthLabel(p.healthStatus),
           notes: p.notes,
         };
       }),
@@ -119,19 +131,33 @@ export const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ onClose }) => {
     const history = messages.map((m) => ({
       role: m.isUser ? 'user' : 'model',
       parts: [{ text: m.text }],
-    }));
+    })) as { role: string; parts: [{ text: string }] }[];
 
-    const responseText = await getChatbotResponse(userMsg.text, history, userContext);
+    try {
+      const responseText = await getChatbotResponse(userMsg.text, history, userContext);
 
-    const botMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      text: responseText,
-      isUser: false,
-      timestamp: new Date(),
-    };
+      const botMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: responseText,
+        isUser: false,
+        timestamp: new Date(),
+      };
 
-    setMessages((prev) => [...prev, botMsg]);
-    setLoading(false);
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (error) {
+      console.log('Chatbot error:', error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          text: 'Ups, tuve un problema al procesar tu mensaje. ¿Podés intentar de nuevo? 🐾',
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -152,7 +178,7 @@ export const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ onClose }) => {
           </View>
           <View>
             <Text style={styles.title}>Asistente Virtual</Text>
-            <Text style={styles.subtitle}>Personalizado para tus mascotas ⚡️</Text>
+            <Text style={styles.subtitle}>Personalizado para tus mascotas</Text>
           </View>
         </View>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -256,7 +282,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   messageText: { fontSize: fontSizes.sm, lineHeight: 20 },
-  userMessageText: { fontFamily: fonts.nunito.regular, color: colors.white },
+  userMessageText: { fontFamily: fonts.nunito.regular, color: colors.textWhite },
   botMessageText: { fontFamily: fonts.nunito.regular, color: colors.textDark },
   timeText: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
   userTimeText: { color: 'rgba(255,255,255,0.8)' },

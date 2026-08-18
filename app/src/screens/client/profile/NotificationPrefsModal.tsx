@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, Switch, Platform, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing } from '../../../config/theme';
 import { Button } from '../../../components/ui';
@@ -11,9 +11,16 @@ interface NotificationPrefsModalProps {
   onClose: () => void;
 }
 
+const defaultPrefs = {
+  appointments: true,
+  vaccines: true,
+  promotions: false,
+  orderUpdates: true,
+  vetMessages: true,
+};
+
 export const NotificationPrefsModal: React.FC<NotificationPrefsModalProps> = ({ visible, onClose }) => {
   const { user } = useAuthStore();
-  const defaultPrefs = { appointments: true, vaccines: true, promotions: false, orderUpdates: true, vetMessages: true };
   const prefs = user?.notificationPrefs || defaultPrefs;
 
   const [appointments, setAppointments] = useState(prefs.appointments);
@@ -22,20 +29,37 @@ export const NotificationPrefsModal: React.FC<NotificationPrefsModalProps> = ({ 
   const [orderUpdates, setOrderUpdates] = useState(prefs.orderUpdates);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Sincroniza el formulario cada vez que se abre el modal
+  useEffect(() => {
+    if (visible) {
+      setAppointments(prefs.appointments);
+      setVaccines(prefs.vaccines);
+      setPromotions(prefs.promotions);
+      setOrderUpdates(prefs.orderUpdates);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
-    await updateUserProfile(user.id, {
-      notificationPrefs: {
-        appointments,
-        vaccines,
-        promotions,
-        orderUpdates,
-        vetMessages: true, // Always true for critical messages
-      },
-    });
-    setIsSaving(false);
-    onClose();
+    try {
+      await updateUserProfile(user.id, {
+        notificationPrefs: {
+          appointments,
+          vaccines,
+          promotions,
+          orderUpdates,
+          vetMessages: true, // Always true for critical messages
+        },
+      });
+      onClose();
+    } catch (error) {
+      console.log('Error saving notification prefs', error);
+      Alert.alert('Error', 'No se pudieron guardar las preferencias. Intentá de nuevo.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const renderSwitch = (title: string, desc: string, value: boolean, onValueChange: (val: boolean) => void) => (
@@ -79,8 +103,6 @@ export const NotificationPrefsModal: React.FC<NotificationPrefsModalProps> = ({ 
     </Modal>
   );
 };
-
-import { Platform } from 'react-native';
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },

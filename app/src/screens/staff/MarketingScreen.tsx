@@ -1,5 +1,6 @@
 // ============================================================
-// Veterinaria La Plata — Marketing Push Campaigns Screen (Fase 5)
+// Veterinaria La Plata — Marketing Push Campaigns Screen
+// Campañas con cupón de descuento + envío push a clientes
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,35 +11,53 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, borderRadius } from '../../config/theme';
 import { Card, Badge, Button, Input } from '../../components/ui';
 import { Campaign, CampaignSegment } from '../../types';
-import { getCampaigns, createCampaign } from '../../services/staffService';
+import { getCampaigns, createCampaign, updateCampaign } from '../../services/staffService';
+import { createCoupon, generateCouponCode } from '../../services/couponService';
+import { sendCampaignPush, logAdminAction } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 
 export const MarketingScreen: React.FC = () => {
   const { user } = useAuthStore();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
 
   // Form state
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [segment, setSegment] = useState<CampaignSegment>('all');
+  const [withCoupon, setWithCoupon] = useState(false);
+  const [discountValue, setDiscountValue] = useState('20');
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    if (user?.role !== 'admin') return;
     loadCampaigns();
-  }, []);
+  }, [user?.role]);
 
   const loadCampaigns = async () => {
-    const list = await getCampaigns();
-    setCampaigns(list);
+    setLoading(true);
+    try {
+      const list = await getCampaigns();
+      setCampaigns(list);
+    } catch (error) {
+      console.log('loadCampaigns error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendCampaign = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'Sesión inválida. Volvé a iniciar sesión.');
+      return;
+    }
     if (!title.trim()) {
       Alert.alert('Error', 'Ingresá el título de la campaña');
       return;
@@ -50,75 +69,142 @@ export const MarketingScreen: React.FC = () => {
 
     setSending(true);
     try {
+      let couponCode: string | undefined;
+
+      // Crear cupón de descuento vinculado a la campaña
+      if (withCoupon) {
+        const value = parseFloat(discountValue);
+        if (!value || value <= 0 || value > 100) {
+          Alert.alert('Error', 'Ingresá un porcentaje de descuento válido (1-100).');
+          setSending(false);
+          return;
+        }
+        couponCode = generateCouponCode('VET');
+        await createCoupon({
+          code: couponCode,
+          discountType: 'percentage',
+          discountValue: value,
+          minPurchase: undefined,
+          usageLimit: 100,
+          validFrom: new Date(),
+          validTo: new Date(Date.now() + 30 * 86400000),
+        });
+        await logAdminAction({ id: user.id, name: user.name }, 'coupon_create', couponCode, `campaña: ${title}`);
+      }
+
       const newCamp = await createCampaign({
-        title,
-        message,
-        type: 'seasonal',
+        title: title.trim(),
+        message: message.trim(),
+        type: 'discount',
         segment,
-        createdBy: user?.id || 'admin-001',
+        couponCode,
+        createdBy: user.id,
       });
 
-      setCampaigns([newCamp, ...campaigns]);
+      // Enviar notificaciones push a los clientes del segmento
+      const { sent } = await sendCampaignPush({
+        id: newCamp.id,
+        title: newCamp.title,
+        message: newCamp.message,
+        segment: newCamp.segment,
+        couponCode: newCamp.couponCode,
+      });
+
+      await updateCampaign(newCamp.id, {
+        status: 'sent',
+        sentAt: new Date(),
+        stats: { sent, opened: 0, clicked: 0 },
+      });
+      await logAdminAction({ id: user.id, name: user.name }, 'campaign_send', newCamp.title, `destinatarios=${sent}`);
+
+      setCampaigns([{ ...newCamp, status: 'sent', sentAt: new Date(), stats: { sent, opened: 0, clicked: 0 } }, ...campaigns]);
       setModalVisible(false);
       setTitle('');
       setMessage('');
-      Alert.alert('¡Campaña Enviada! 🚀', `Notificación push enviada a los usuarios segmentados.`);
+      setWithCoupon(false);
+      setDiscountValue('20');
+      Alert.alert('¡Campaña Enviada! 🚀', `Notificación enviada a ${sent} clientes.${couponCode ? ` Cupón ${couponCode} generado.` : ''}`);
     } catch (error) {
-      Alert.alert('Error', 'No se pudo enviar la campaña.');
+      console.log('send campaign error:', error);
+      Alert.alert('Error', 'No se pudo crear la campaña.');
     } finally {
       setSending(false);
     }
   };
 
+  if (user?.role !== 'admin') {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <MaterialCommunityIcons name="shield-lock-outline" size={48} color={colors.danger} />
+        <Text style={{ fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.md, color: colors.textMuted, marginTop: spacing.md }}>
+          No tenés permisos de administrador.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Campañas Marketing 📢</Text>
-        <Button
-          title="+ Nueva Campaña"
-          onPress={() => setModalVisible(true)}
-          variant="accent"
-          size="sm"
-        />
+        <Button title="+ Nueva Campaña" onPress={() => setModalVisible(true)} variant="accent" size="sm" />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>Historial de Notificaciones Push</Text>
+        <Text style={styles.sectionTitle}>Historial de Campañas</Text>
 
-        {campaigns.map((camp) => (
-          <Card key={camp.id} variant="elevated" style={styles.campCard}>
-            <View style={styles.campHeader}>
-              <Badge label={camp.segment.toUpperCase()} variant="primary" />
-              <Text style={styles.campDate}>
-                {camp.sentAt ? new Date(camp.sentAt).toLocaleDateString('es-AR') : 'Programada'}
-              </Text>
-            </View>
-
-            <Text style={styles.campTitle}>{camp.title}</Text>
-            <Text style={styles.campMessage}>{camp.message}</Text>
-
-            {/* Metrics */}
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statVal}>{camp.stats.sent}</Text>
-                <Text style={styles.statLbl}>Enviados</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statVal}>{camp.stats.opened}</Text>
-                <Text style={styles.statLbl}>Abiertos</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statVal}>{camp.stats.clicked}</Text>
-                <Text style={styles.statLbl}>Clicks</Text>
-              </View>
-            </View>
+        {loading ? (
+          <Card variant="outlined" style={{ padding: spacing.xl, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.primary} />
           </Card>
-        ))}
+        ) : campaigns.length === 0 ? (
+          <Card variant="outlined" style={{ padding: spacing.xl, alignItems: 'center' }}>
+            <MaterialCommunityIcons name="bullhorn-outline" size={40} color={colors.textLight} />
+            <Text style={{ fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginTop: spacing.sm }}>
+              Todavía no creaste campañas.
+            </Text>
+          </Card>
+        ) : (
+          campaigns.map((camp) => (
+            <Card key={camp.id} variant="elevated" style={styles.campCard}>
+              <View style={styles.campHeader}>
+                <Badge label={camp.segment.toUpperCase()} variant="primary" />
+                <Text style={styles.campDate}>
+                  {camp.sentAt ? new Date(camp.sentAt).toLocaleDateString('es-AR') : 'Programada'}
+                </Text>
+              </View>
+
+              <Text style={styles.campTitle}>{camp.title}</Text>
+              <Text style={styles.campMessage}>{camp.message}</Text>
+
+              {camp.couponCode ? (
+                <View style={styles.couponCodeBox}>
+                  <MaterialCommunityIcons name="ticket-percent-outline" size={18} color={colors.success} />
+                  <Text style={styles.couponCodeText}>Cupón: {camp.couponCode}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statVal}>{camp.stats.sent}</Text>
+                  <Text style={styles.statLbl}>Enviados</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statVal}>{camp.stats.opened}</Text>
+                  <Text style={styles.statLbl}>Abiertos</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statVal}>{camp.stats.clicked}</Text>
+                  <Text style={styles.statLbl}>Clicks</Text>
+                </View>
+              </View>
+            </Card>
+          ))
+        )}
       </ScrollView>
 
       {/* New Campaign Modal */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nueva Campaña Push 🚀</Text>
@@ -127,7 +213,7 @@ export const MarketingScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.modalContent}>
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             <Input
               label="Título de la Notificación"
               placeholder="Ej: 20% OFF en Alimentos por 48hs 🎉"
@@ -149,7 +235,6 @@ export const MarketingScreen: React.FC = () => {
                 { id: 'all', label: '👥 Todos los Clientes' },
                 { id: 'dog_owners', label: '🐶 Dueños de Perros' },
                 { id: 'cat_owners', label: '🐱 Dueños de Gatos' },
-                { id: 'inactive_clients', label: '💤 Inactivos (+3 meses)' },
               ].map((s) => (
                 <TouchableOpacity
                   key={s.id}
@@ -163,8 +248,33 @@ export const MarketingScreen: React.FC = () => {
               ))}
             </View>
 
+            {/* Cupón de descuento */}
+            <TouchableOpacity style={styles.couponToggle} onPress={() => setWithCoupon(!withCoupon)}>
+              <MaterialCommunityIcons
+                name={withCoupon ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                size={24}
+                color={withCoupon ? colors.success : colors.textMuted}
+              />
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Text style={styles.couponToggleTitle}>Incluir cupón de descuento 🎟️</Text>
+                <Text style={styles.couponToggleDesc}>
+                  Genera un código automático que los clientes podrán aplicar en la tienda.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {withCoupon && (
+              <Input
+                label="Porcentaje de descuento (%)"
+                placeholder="Ej: 20"
+                value={discountValue}
+                onChangeText={setDiscountValue}
+                keyboardType="numeric"
+              />
+            )}
+
             <Button
-              title="Enviar Notificación Ahora 🚀"
+              title="Enviar Campaña Ahora 🚀"
               onPress={handleSendCampaign}
               loading={sending}
               variant="accent"
@@ -190,6 +300,8 @@ const styles = StyleSheet.create({
   campDate: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted },
   campTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.md, color: colors.textDark, marginTop: spacing.xs },
   campMessage: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginTop: 2, marginBottom: spacing.md },
+  couponCodeBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.successSoft, padding: spacing.sm, borderRadius: borderRadius.sm, marginBottom: spacing.md },
+  couponCodeText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.successDark },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: colors.primarySoft, padding: spacing.sm, borderRadius: 12 },
   statItem: { alignItems: 'center' },
   statVal: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.md, color: colors.primaryDark },
@@ -204,6 +316,9 @@ const styles = StyleSheet.create({
   segOptionActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   segOptionText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark },
   segOptionTextActive: { color: colors.accentDark },
+  couponToggle: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard, marginBottom: spacing.md },
+  couponToggleTitle: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark },
+  couponToggleDesc: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
 });
 
 export default MarketingScreen;

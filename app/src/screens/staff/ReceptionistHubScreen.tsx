@@ -18,24 +18,32 @@ import { PaymentQRModal } from '../../components/ui/PaymentQRModal';
 import { WaitingRoomTVDisplay } from './WaitingRoomTVDisplay';
 import {
   QueueItem,
-  getQueue,
+  subscribeToQueue,
   addToQueue,
   updateQueueStatus,
   removeFromQueue,
 } from '../../services/waitingRoomService';
+import { searchPets } from '../../services/staffService';
+import { Pet, Order } from '../../types';
+import { getOrders, updateOrderStatus } from '../../services/shopService';
 import { useAuthStore } from '../../store/authStore';
 
-const MOCK_DAILY_OPS = [
-  { id: 'op-1', type: 'appointment', time: '09:00 AM', client: 'María González', description: 'Turno: Vacunación (Luna)', amount: 15000, status: 'unpaid' },
-  { id: 'op-2', type: 'sale', time: '09:45 AM', client: 'Juan Perez', description: 'Venta: Royal Canin 15kg', amount: 59900, status: 'paid' },
-  { id: 'op-3', type: 'appointment', time: '10:00 AM', client: 'Ana Silva', description: 'Turno: Peluquería (Coco)', amount: 22000, status: 'unpaid' },
-];
+interface BillingOp {
+  id: string;
+  type: 'appointment' | 'sale';
+  time: string;
+  client: string;
+  description: string;
+  amount: number;
+  status: 'paid' | 'unpaid';
+  orderId?: string;
+}
 
 export const ReceptionistHubScreen: React.FC = () => {
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'queue' | 'billing'>('queue');
   const [searchQuery, setSearchQuery] = useState('');
-  const [ops, setOps] = useState(MOCK_DAILY_OPS);
+  const [ops, setOps] = useState<BillingOp[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
 
   // Payment Modal State
@@ -52,27 +60,53 @@ export const ReceptionistHubScreen: React.FC = () => {
   const [newPetName, setNewPetName] = useState('');
   const [newOwnerName, setNewOwnerName] = useState('');
   const [newReason, setNewReason] = useState('');
-  const [newRoom, setNewRoom] = useState('Consultorio 1 (Dr. Fernández)');
+  const [newRoom, setNewRoom] = useState('Consultorio 1');
+  const [petSearch, setPetSearch] = useState('');
+  const [petResults, setPetResults] = useState<Pet[]>([]);
+  const [selectedQueuePet, setSelectedQueuePet] = useState<Pet | null>(null);
 
   useEffect(() => {
-    loadQueue();
+    const unsubscribe = subscribeToQueue((items) => setQueue(items));
+    loadBilling();
+    return () => unsubscribe();
   }, []);
 
-  const loadQueue = async () => {
-    const data = await getQueue();
-    setQueue([...data]);
+  const loadBilling = async () => {
+    try {
+      const orders = await getOrders();
+      const billingOps: BillingOp[] = orders.map((o: Order) => ({
+        id: o.id,
+        type: 'sale',
+        time: new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        client: o.clientName,
+        description: `${o.items.map((i) => i.productName).join(', ') || 'Pedido'}`,
+        amount: o.total,
+        status: o.paymentStatus === 'approved' ? 'paid' : 'unpaid',
+        orderId: o.id,
+      }));
+      setOps(billingOps);
+    } catch (error) {
+      console.log('loadBilling error:', error);
+    }
   };
 
   const handleOpenPayment = (amount?: number, concept?: string, opId?: string) => {
-    setChargeAmount(amount || 15000);
+    setChargeAmount(amount && amount > 0 ? amount : 15000);
     setChargeConcept(concept || 'Cobro de Mostrador');
     setActiveOpId(opId || null);
     setPaymentModalVisible(true);
   };
 
-  const handlePaymentSuccess = (amount: number, concept: string) => {
+  const handlePaymentSuccess = async (amount: number, concept: string) => {
     if (activeOpId) {
-      setOps(ops.map(op => op.id === activeOpId ? { ...op, status: 'paid' } : op));
+      setOps((current) =>
+        current.map((op) => (op.id === activeOpId ? { ...op, status: 'paid' } : op))
+      );
+      try {
+        await updateOrderStatus(activeOpId, 'approved', 'preparing');
+      } catch (e) {
+        console.log('updateOrderStatus error:', e);
+      }
     }
   };
 
@@ -82,29 +116,83 @@ export const ReceptionistHubScreen: React.FC = () => {
       return;
     }
 
-    await addToQueue(newPetName, newOwnerName, newReason || 'Consulta General', newRoom);
-    await loadQueue();
-    setAddQueueVisible(false);
-    setNewPetName('');
-    setNewOwnerName('');
-    setNewReason('');
-    Alert.alert('¡Paciente Registrado! 🎟️', `Orden de llegada asignado.`);
+    try {
+      await addToQueue(
+        newPetName.trim(),
+        newOwnerName.trim(),
+        newReason || 'Consulta General',
+        newRoom,
+        selectedQueuePet?.id
+      );
+      setAddQueueVisible(false);
+      setNewPetName('');
+      setNewOwnerName('');
+      setNewReason('');
+      setPetSearch('');
+      setPetResults([]);
+      setSelectedQueuePet(null);
+      Alert.alert('¡Paciente Registrado! 🎟️', `Orden de llegada asignado.`);
+    } catch (error) {
+      console.log('addToQueue error:', error);
+      Alert.alert('Error', 'No se pudo registrar al paciente.');
+    }
+  };
+
+  const handlePetSearch = async (text: string) => {
+    setPetSearch(text);
+    setSelectedQueuePet(null);
+    if (text.trim().length < 2) {
+      setPetResults([]);
+      return;
+    }
+    try {
+      const results = await searchPets(text, 8);
+      setPetResults(results);
+    } catch (error) {
+      console.log('pet search error:', error);
+      setPetResults([]);
+    }
   };
 
   const handleCallPatient = async (id: string, room?: string) => {
-    await updateQueueStatus(id, 'calling', room);
-    await loadQueue();
-    Alert.alert('🔔 Paciente Llamado', 'Aparecerá destacado en la pantalla TV de la sala de espera.');
+    try {
+      await updateQueueStatus(id, 'calling', room);
+      Alert.alert('🔔 Paciente Llamado', 'Aparecerá destacado en la pantalla TV de la sala de espera.');
+    } catch (error) {
+      console.log('call error:', error);
+    }
   };
 
   const handleCompletePatient = async (id: string) => {
-    await updateQueueStatus(id, 'completed');
-    await loadQueue();
+    try {
+      await updateQueueStatus(id, 'completed');
+    } catch (error) {
+      console.log('complete error:', error);
+    }
   };
 
   const handleRemoveQueueItem = async (id: string) => {
-    await removeFromQueue(id);
-    await loadQueue();
+    Alert.alert('Quitar paciente', '¿Eliminar a este paciente de la lista de espera?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await removeFromQueue(id);
+          } catch (error) {
+            console.log('remove error:', error);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Cerrar sesión', '¿Seguro que querés cerrar tu sesión?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: logout },
+    ]);
   };
 
   return (
@@ -113,7 +201,7 @@ export const ReceptionistHubScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
           <View>
-            <Text style={styles.title}>Recepción & Turnero 🗂️</Text>
+            <Text style={styles.title}>Recepción & Turnero</Text>
             <Text style={styles.subtitle}>Orden de Llegada y Caja en Mostrador</Text>
           </View>
 
@@ -128,7 +216,7 @@ export const ReceptionistHubScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.logoutBtn}
-              onPress={logout}
+              onPress={handleLogout}
             >
               <MaterialCommunityIcons name="logout" size={18} color={colors.danger} />
               <Text style={styles.logoutText}>Salir</Text>
@@ -306,13 +394,56 @@ export const ReceptionistHubScreen: React.FC = () => {
       <Modal visible={addQueueVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Registrar Llegada de Paciente 🎟️</Text>
+            <Text style={styles.modalTitle}>Registrar Llegada de Paciente</Text>
             <TouchableOpacity onPress={() => setAddQueueVisible(false)}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalContent}>
+            <Text style={styles.labelText}>Buscar mascota registrada (opcional)</Text>
+            <Input
+              placeholder="🔍 Ej: Luna, Michi..."
+              value={petSearch}
+              onChangeText={handlePetSearch}
+              containerStyle={{ marginBottom: spacing.sm }}
+            />
+
+            {selectedQueuePet ? (
+              <View style={styles.selectedPetRow}>
+                <MaterialCommunityIcons name="paw" size={20} color={colors.primary} />
+                <Text style={{ flex: 1, fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark, marginLeft: spacing.xs }}>
+                  {selectedQueuePet.name} • {selectedQueuePet.breed || selectedQueuePet.species}
+                </Text>
+                <TouchableOpacity onPress={() => setSelectedQueuePet(null)}>
+                  <MaterialCommunityIcons name="close-circle" size={20} color={colors.textLight} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              petResults.length > 0 && (
+                <View style={styles.petResultsBox}>
+                  {petResults.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.petResultRow}
+                      onPress={() => {
+                        setSelectedQueuePet(p);
+                        setNewPetName(p.name);
+                        setNewOwnerName(p.ownerName || '');
+                        setPetResults([]);
+                        setPetSearch('');
+                      }}
+                    >
+                      <MaterialCommunityIcons name={p.species === 'dog' ? 'dog' : 'cat'} size={18} color={colors.primary} />
+                      <Text style={{ flex: 1, fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.sm, color: colors.textDark, marginLeft: spacing.xs }}>
+                        {p.name} ({p.breed || p.species})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )
+            )}
+
             <Input
               label="Nombre de la Mascota"
               placeholder="Ej: Luna, Max..."
@@ -412,6 +543,30 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark },
   modalContent: { padding: spacing.xl },
+  labelText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.sm, color: colors.textDark, marginBottom: spacing.xs },
+  selectedPetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  petResultsBox: {
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  petResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
 });
 
 export default ReceptionistHubScreen;

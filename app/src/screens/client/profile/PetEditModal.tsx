@@ -16,7 +16,7 @@ import { colors, fonts, fontSizes, spacing, borderRadius } from '../../../config
 import { Button, Input } from '../../../components/ui';
 import { Pet, PetSpecies, PetSex } from '../../../types';
 import { updatePet } from '../../../services/dataService';
-import { uploadImageBase64 } from '../../../services/storageService';
+import { uploadImageBase64, uploadImage } from '../../../services/storageService';
 import { useAuthStore } from '../../../store/authStore';
 
 interface PetEditModalProps {
@@ -87,39 +87,46 @@ export const PetEditModal: React.FC<PetEditModalProps> = ({ visible, pet, onClos
       return;
     }
 
-    const yrs = parseInt(ageYears, 10) || 0;
-    const mths = parseInt(ageMonths, 10) || 0;
-    
-    // Solo recalculamos la fecha si cambiaron los años/meses significativamente (simplificado para edit)
+    const yrs = Math.max(0, parseInt(ageYears, 10) || 0);
+    const mths = Math.max(0, parseInt(ageMonths, 10) || 0);
+
+    if (yrs === 0 && mths === 0) {
+      Alert.alert('Error', 'Ingresá la edad de la mascota');
+      return;
+    }
+
+    // Recalculamos birthDate aproximado a partir de la edad
     const calculatedBirthDate = new Date();
     calculatedBirthDate.setFullYear(calculatedBirthDate.getFullYear() - yrs);
     calculatedBirthDate.setMonth(calculatedBirthDate.getMonth() - mths);
 
     setLoading(true);
     try {
-      let avatarUrl = pet.avatarUrl;
+      let avatarUrl: string | undefined = pet.avatarUrl;
 
-      if (imageBase64) {
+      if (imageBase64 || imageUri) {
         setUploadingImage(true);
-        const fileName = `pet-${user.id}-${Date.now()}.jpg`;
-        avatarUrl = await uploadImageBase64(imageBase64, `pets/avatars/${fileName}`);
-        setUploadingImage(false);
-      } else if (imageUri) {
-        setUploadingImage(true);
-        const fileName = `pet-${user.id}-${Date.now()}.jpg`;
-        avatarUrl = await uploadImage(imageUri, `pets/avatars/${fileName}`);
-        setUploadingImage(false);
+        try {
+          const fileName = `pet-${user.id}-${Date.now()}.jpg`;
+          if (imageBase64) {
+            avatarUrl = await uploadImageBase64(imageBase64, `pets/avatars/${fileName}`);
+          } else if (imageUri) {
+            avatarUrl = await uploadImage(imageUri, `pets/avatars/${fileName}`);
+          }
+        } finally {
+          setUploadingImage(false);
+        }
       }
 
       const petUpdateData: Partial<Pet> = {
-        name,
+        name: name.trim(),
         species,
-        breed,
+        breed: breed.trim(),
         birthDate: calculatedBirthDate,
         ageYears: yrs,
         ageMonths: mths,
         sex,
-        currentWeight: parseFloat(weight) || 0,
+        currentWeight: Math.max(0, parseFloat(weight) || 0),
         notes,
       };
 

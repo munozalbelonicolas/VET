@@ -14,11 +14,12 @@ import {
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { Pet, Appointment, MedicalRecord, GroomingRecord } from '../types';
+import { db, DEMO_MODE } from '../config/firebase';
+import { Pet, Appointment } from '../types';
+import { buildSearchTokens } from './searchUtils';
 
-// --- MOCK DATA FOR DEV & DEMO ---
-let MOCK_PETS: Pet[] = [
+// --- MOCK DATA (solo DEMO_MODE) ---
+const MOCK_PETS: Pet[] = [
   {
     id: 'pet-1',
     ownerId: 'client-001',
@@ -49,7 +50,7 @@ let MOCK_PETS: Pet[] = [
   },
 ];
 
-let MOCK_APPOINTMENTS: Appointment[] = [
+const MOCK_APPOINTMENTS: Appointment[] = [
   {
     id: 'app-1',
     petId: 'pet-1',
@@ -57,7 +58,7 @@ let MOCK_APPOINTMENTS: Appointment[] = [
     ownerId: 'client-001',
     ownerName: 'María González',
     type: 'vaccination',
-    date: new Date(Date.now() + 86400000 * 2), // 2 days from now
+    date: new Date(Date.now() + 86400000 * 2),
     timeSlot: 'morning',
     status: 'confirmed',
     notes: 'Vacuna quíntuple anual.',
@@ -71,80 +72,75 @@ let MOCK_APPOINTMENTS: Appointment[] = [
     ownerId: 'client-001',
     ownerName: 'María González',
     type: 'grooming',
-    date: new Date(Date.now() + 86400000 * 5), // 5 days from now
+    date: new Date(Date.now() + 86400000 * 5),
     timeSlot: 'afternoon',
     status: 'pending',
     notes: 'Baño y deslanado.',
     createdAt: new Date(),
     updatedAt: new Date(),
   },
-  {
-    id: 'pet-3',
-    ownerId: 'client-001',
-    name: 'Felipe',
-    species: 'dog',
-    breed: 'Yorky (Yorkshire Terrier)',
-    birthDate: new Date('2026-04-10'),
-    sex: 'male',
-    currentWeight: 1.15,
-    healthStatus: 'green',
-    ownerName: 'Nicolas',
-    notes: 'Cachorro alegre y juguetón.',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
 ];
+
+// --- Helpers de conversión ---
+const toDate = (value: any, fallback = new Date()): Date =>
+  value?.toDate ? value.toDate() : value instanceof Date ? value : fallback;
+
+const mapPet = (id: string, data: any): Pet => ({
+  id,
+  ...data,
+  birthDate: toDate(data?.birthDate),
+  createdAt: toDate(data?.createdAt),
+  updatedAt: toDate(data?.updatedAt),
+});
+
+const mapAppointment = (id: string, data: any): Appointment => ({
+  id,
+  ...data,
+  date: toDate(data?.date),
+  createdAt: toDate(data?.createdAt),
+  updatedAt: toDate(data?.updatedAt),
+});
 
 // --- PETS API ---
 export async function getAllPets(): Promise<Pet[]> {
-  try {
-    const querySnapshot = await getDocs(collection(db, 'pets'));
-    if (!querySnapshot.empty) {
-      return querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        birthDate: doc.data().birthDate?.toDate?.() || new Date(),
-        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-      })) as Pet[];
-    }
-  } catch (error) {
-    console.log('Using mock pets data for all pets');
-  }
-  return MOCK_PETS;
+  const querySnapshot = await getDocs(collection(db, 'pets'));
+  return querySnapshot.docs.map((d) => mapPet(d.id, d.data()));
 }
 
 export async function getPetsByOwner(ownerId: string): Promise<Pet[]> {
+  if (!ownerId) return [];
   try {
     const q = query(collection(db, 'pets'), where('ownerId', '==', ownerId));
     const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      return querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        birthDate: doc.data().birthDate?.toDate?.() || new Date(),
-        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-      })) as Pet[];
-    }
+    return querySnapshot.docs.map((d) => mapPet(d.id, d.data()));
   } catch (error) {
-    console.log('Using mock pets data (Firebase not connected or empty)');
+    console.log('getPetsByOwner error:', error);
+    if (!DEMO_MODE) throw error;
+    return MOCK_PETS.filter((p) => p.ownerId === ownerId);
   }
-  return MOCK_PETS.filter((p) => p.ownerId === ownerId || ownerId === 'client-001');
 }
 
-export async function addPet(petData: Omit<Pet, 'id' | 'createdAt' | 'updatedAt'>): Promise<Pet> {
+export async function getPetById(petId: string): Promise<Pet | null> {
+  const snapshot = await getDoc(doc(db, 'pets', petId));
+  if (!snapshot.exists()) return null;
+  return mapPet(snapshot.id, snapshot.data());
+}
+
+export async function addPet(petData: Omit<Pet, 'id' | 'createdAt' | 'updatedAt' | 'searchTokens'>): Promise<Pet> {
   try {
     const docRef = await addDoc(collection(db, 'pets'), {
       ...petData,
+      searchTokens: buildSearchTokens(petData),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    return { id: docRef.id, ...petData, createdAt: new Date(), updatedAt: new Date() };
+    return { id: docRef.id, ...petData, searchTokens: buildSearchTokens(petData), createdAt: new Date(), updatedAt: new Date() };
   } catch (error) {
+    if (!DEMO_MODE) throw error;
     const newPet: Pet = {
       id: `pet-${Date.now()}`,
       ...petData,
+      searchTokens: buildSearchTokens(petData),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -153,24 +149,66 @@ export async function addPet(petData: Omit<Pet, 'id' | 'createdAt' | 'updatedAt'
   }
 }
 
+export async function updatePet(petId: string, data: Partial<Pet>): Promise<void> {
+  try {
+    const petRef = doc(db, 'pets', petId);
+    const petDoc = await getDoc(petRef);
+    const current = petDoc.exists() ? petDoc.data() : {};
+    const tokens = buildSearchTokens({
+      name: data.name ?? current.name ?? '',
+      breed: data.breed ?? current.breed,
+      ownerName: data.ownerName ?? current.ownerName,
+    });
+    await updateDoc(petRef, {
+      ...data,
+      searchTokens: tokens,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    if (!DEMO_MODE) throw error;
+    const index = MOCK_PETS.findIndex((p) => p.id === petId);
+    if (index !== -1) {
+      MOCK_PETS[index] = { ...MOCK_PETS[index], ...data };
+    }
+  }
+}
+
+export async function deletePet(petId: string): Promise<void> {
+  await deleteDoc(doc(db, 'pets', petId));
+}
+
 // --- APPOINTMENTS API ---
 export async function getAppointmentsByOwner(ownerId: string): Promise<Appointment[]> {
+  if (!ownerId) return [];
   try {
-    const q = query(collection(db, 'appointments'), where('ownerId', '==', ownerId));
+    const q = query(
+      collection(db, 'appointments'),
+      where('ownerId', '==', ownerId),
+      orderBy('date', 'desc')
+    );
     const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      return querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate?.() || new Date(),
-        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-      })) as Appointment[];
-    }
+    return querySnapshot.docs.map((d) => mapAppointment(d.id, d.data()));
   } catch (error) {
-    console.log('Using mock appointments data');
+    console.log('getAppointmentsByOwner error:', error);
+    if (!DEMO_MODE) throw error;
+    return MOCK_APPOINTMENTS.filter((a) => a.ownerId === ownerId);
   }
-  return MOCK_APPOINTMENTS.filter((a) => a.ownerId === ownerId);
+}
+
+export async function getAllAppointments(): Promise<Appointment[]> {
+  const q = query(collection(db, 'appointments'), orderBy('date', 'asc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((d) => mapAppointment(d.id, d.data()));
+}
+
+export async function getAppointmentsByProfessional(professionalId: string): Promise<Appointment[]> {
+  const q = query(
+    collection(db, 'appointments'),
+    where('professionalId', '==', professionalId),
+    orderBy('date', 'asc')
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((d) => mapAppointment(d.id, d.data()));
 }
 
 export async function createAppointment(
@@ -184,6 +222,7 @@ export async function createAppointment(
     });
     return { id: docRef.id, ...appointmentData, createdAt: new Date(), updatedAt: new Date() };
   } catch (error) {
+    if (!DEMO_MODE) throw error;
     const newApp: Appointment = {
       id: `app-${Date.now()}`,
       ...appointmentData,
@@ -195,19 +234,13 @@ export async function createAppointment(
   }
 }
 
-export async function updatePet(petId: string, data: Partial<Pet>): Promise<void> {
-  try {
-    const petRef = doc(db, 'pets', petId);
-    await updateDoc(petRef, {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error('Error updating pet in Firestore:', error);
-    // Fallback: update in MOCK_PETS
-    const index = MOCK_PETS.findIndex(p => p.id === petId);
-    if (index !== -1) {
-      MOCK_PETS[index] = { ...MOCK_PETS[index], ...data };
-    }
-  }
+export async function updateAppointment(appointmentId: string, data: Partial<Appointment>): Promise<void> {
+  await updateDoc(doc(db, 'appointments', appointmentId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteAppointment(appointmentId: string): Promise<void> {
+  await deleteDoc(doc(db, 'appointments', appointmentId));
 }

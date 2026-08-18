@@ -1,5 +1,5 @@
 // ============================================================
-// Veterinaria La Plata — Shop & Catalog Screen (Fase 3)
+// Veterinaria La Plata — Shop & Catalog Screen
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import {
@@ -12,32 +12,72 @@ import {
   Modal,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 import { Card, Badge, Button, Input } from '../../components/ui';
-import { Product, CartItem } from '../../types';
-import { getProducts } from '../../services/shopService';
+import { Product, OrderPaymentMethod, OrderItem } from '../../types';
+import { getProducts, createOrder, updateProductStock } from '../../services/shopService';
+import { validateCoupon, discountFor, applyCoupon } from '../../services/couponService';
 import { useCartStore } from '../../store/cartStore';
+import { useAuthStore } from '../../store/authStore';
+import { createInAppNotification } from '../../services/notificationService';
+
+const CATEGORIES = [
+  { id: 'all', label: 'Todo' },
+  { id: 'food', label: 'Alimentos' },
+  { id: 'medication', label: 'Farmacia' },
+  { id: 'accessories', label: 'Accesorios' },
+  { id: 'hygiene', label: 'Higiene' },
+];
+
+const toImageUrl = (image: any): string | undefined => {
+  if (typeof image === 'string') return image;
+  return undefined;
+};
 
 export const ShopScreen: React.FC = () => {
+  const { user } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSpecies, setSelectedSpecies] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cartModalVisible, setCartModalVisible] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'shipping' | 'payment' | 'success'>('cart');
 
-  const { items, addItem, removeItem, updateQuantity, clearCart, getTotal, getSubtotal } = useCartStore();
+  const { items, addItem, updateQuantity, clearCart, getTotal, getSubtotal, getDiscount, couponCode, setCoupon, removeCoupon } = useCartStore();
+
+  // Shipping form state
+  const [shippingStreet, setShippingStreet] = useState('');
+  const [shippingNumber, setShippingNumber] = useState('');
+  const [shippingApartment, setShippingApartment] = useState('');
+  const [shippingNotes, setShippingNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<OrderPaymentMethod>('mercadopago');
+  const [placingOrder, setPlacingOrder] = useState(false);
+
+  // Coupon state
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
 
   useEffect(() => {
     loadProducts();
   }, [selectedCategory, selectedSpecies]);
 
   const loadProducts = async () => {
-    const list = await getProducts(selectedCategory, selectedSpecies);
-    setProducts(list);
+    setLoading(true);
+    try {
+      const list = await getProducts(selectedCategory, selectedSpecies);
+      setProducts(list);
+    } catch (error) {
+      console.log('loadProducts error:', error);
+      Alert.alert('Error', 'No se pudieron cargar los productos.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredProducts = products.filter((p) =>
@@ -45,14 +85,160 @@ export const ShopScreen: React.FC = () => {
   );
 
   const handleAddToCart = (product: Product) => {
+    const stock = product.stock || 0;
+    const existing = items.find((i) => i.productId === product.id);
+    if (existing && existing.quantity >= stock) {
+      Alert.alert('Sin stock', `No hay más unidades disponibles de ${product.name}.`);
+      return;
+    }
+    if (stock <= 0) {
+      Alert.alert('Sin stock', `Este producto no está disponible por el momento.`);
+      return;
+    }
     addItem({
       productId: product.id,
       productName: product.name,
-      productImage: product.images[0] || '',
+      productImage: toImageUrl(product.images?.[0]) || '',
       price: product.salePrice || product.price,
       quantity: 1,
     });
     Alert.alert('¡Agregado al carrito! 🛒', `${product.name} se sumó a tu compra.`);
+  };
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) {
+      setCouponError('Ingresá un código de descuento.');
+      return;
+    }
+    setApplyingCoupon(true);
+    try {
+      const result = await validateCoupon(code);
+      if (!result.valid || !result.coupon) {
+        setCouponError(result.message);
+        return;
+      }
+      const discount = discountFor(result.coupon, getSubtotal());
+      if (discount <= 0) {
+        setCouponError(result.coupon.minPurchase
+          ? `Este cupón requiere una compra mínima de $${result.coupon.minPurchase.toLocaleString('es-AR')}.`
+          : 'Este cupón no aplica a tu carrito.');
+        return;
+      }
+      setCoupon(result.coupon.code, {
+        discountType: result.coupon.discountType,
+        discountValue: result.coupon.discountValue,
+        minPurchase: result.coupon.minPurchase,
+      });
+      setCouponInput('');
+      setCouponError('');
+      Alert.alert('¡Descuento aplicado! 🎉', `Ahorrás $${discount.toLocaleString('es-AR')} con el código ${result.coupon.code}.`);
+    } catch (error) {
+      console.log('apply coupon error:', error);
+      setCouponError('No se pudo validar el cupón. Intentá de nuevo.');
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'Debés iniciar sesión para comprar');
+      return;
+    }
+    if (!shippingStreet.trim() || !shippingNumber.trim()) {
+      Alert.alert('Error', 'Ingresá calle y número de la dirección de entrega');
+      return;
+    }
+    if (items.length === 0) return;
+
+    setPlacingOrder(true);
+    try {
+      const orderItems: OrderItem[] = items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        productImage: typeof i.productImage === 'string' ? i.productImage : '',
+        variantId: i.variantId,
+        variantName: i.variantName,
+        price: i.price,
+        quantity: i.quantity,
+        subtotal: i.price * i.quantity,
+      }));
+
+      const subtotal = getSubtotal();
+      const discount = getDiscount();
+      const total = getTotal();
+
+      await createOrder({
+        clientId: user.id,
+        clientName: user.name,
+        items: orderItems,
+        subtotal,
+        discount,
+        total,
+        couponCode: couponCode || undefined,
+        paymentMethod,
+        paymentStatus: 'pending',
+        clientPhone: user.phone || '',
+        shippingAddress: {
+          street: shippingStreet.trim(),
+          number: shippingNumber.trim(),
+          floor: '',
+          apartment: shippingApartment.trim(),
+          city: user.address?.city || 'La Plata',
+          province: user.address?.province || 'Buenos Aires',
+          zipCode: user.address?.zipCode || '',
+          notes: shippingNotes.trim(),
+        },
+        shippingStatus: 'preparing',
+        trackingNumber: '',
+        trackingUpdates: [{ status: 'preparing', timestamp: new Date(), description: 'Pedido recibido' }],
+      });
+
+      // Descontar stock
+      for (const item of items) {
+        try {
+          await updateProductStock(item.productId, -item.quantity);
+        } catch (e) {
+          console.log('Stock update error (non blocking):', e);
+        }
+      }
+
+      // Registrar uso del cupón
+      if (couponCode) {
+        try {
+          await applyCoupon(couponCode);
+        } catch (e) {
+          console.log('Coupon usage error (non blocking):', e);
+        }
+      }
+
+      // Notificación in-app
+      try {
+        await createInAppNotification({
+          userId: user.id,
+          type: 'order_status',
+          title: 'Pedido recibido 🛒',
+          body: couponCode
+            ? `Tu pedido fue registrado con un descuento de $${discount.toLocaleString('es-AR')}.`
+            : 'Tu pedido fue registrado y está en preparación.',
+        });
+      } catch (e) {
+        console.log('Notif error (non blocking):', e);
+      }
+
+      clearCart();
+      setCheckoutStep('success');
+      setShippingStreet('');
+      setShippingNumber('');
+      setShippingApartment('');
+      setShippingNotes('');
+    } catch (error) {
+      console.log('Order error:', error);
+      Alert.alert('Error', 'No se pudo procesar el pedido. Intentá de nuevo.');
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   return (
@@ -60,8 +246,8 @@ export const ShopScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Petshop 🛒</Text>
-          <Text style={styles.subtitle}>Envíos a todo La Plata</Text>
+          <Text style={styles.title}>Petshop</Text>
+          <Text style={styles.subtitle}>Envíos coordinados</Text>
         </View>
         <TouchableOpacity style={styles.cartBtn} onPress={() => setCartModalVisible(true)}>
           <MaterialCommunityIcons name="cart-outline" size={28} color={colors.textDark} />
@@ -102,13 +288,7 @@ export const ShopScreen: React.FC = () => {
 
       {/* Categories */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
-        {[
-          { id: 'all', label: 'Todo' },
-          { id: 'food', label: 'Alimentos' },
-          { id: 'medication', label: 'Farmacia' },
-          { id: 'accessories', label: 'Accesorios' },
-          { id: 'hygiene', label: 'Higiene' },
-        ].map((c) => (
+        {CATEGORIES.map((c) => (
           <TouchableOpacity
             key={c.id}
             style={[styles.catItem, selectedCategory === c.id && styles.catItemActive]}
@@ -120,59 +300,72 @@ export const ShopScreen: React.FC = () => {
       </ScrollView>
 
       {/* Product List */}
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.productList}
-        columnWrapperStyle={styles.columnWrapper}
-        renderItem={({ item }) => (
-          <Card variant="elevated" style={styles.productCard}>
-            <View style={styles.imgPlaceholder}>
-              {item.images && item.images.length > 0 ? (
-                <Image source={item.images[0]} style={{ width: '100%', height: '100%', resizeMode: 'cover', borderRadius: borderRadius.md }} />
-              ) : (
-                <MaterialCommunityIcons
-                  name={item.category === 'food' ? 'food-drumstick' : item.category === 'medication' ? 'pill' : 'paw'}
-                  size={48}
-                  color={colors.primary}
-                />
-              )}
-              {item.salePrice && (
-                <View style={styles.saleBadge}>
-                  <Text style={styles.saleBadgeText}>OFERTA</Text>
-                </View>
-              )}
+      {loading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.productList}
+          columnWrapperStyle={styles.columnWrapper}
+          ListEmptyComponent={
+            <View style={styles.emptyProducts}>
+              <MaterialCommunityIcons name="package-variant" size={56} color={colors.textLight} />
+              <Text style={styles.emptyProductsText}>No hay productos para mostrar.</Text>
             </View>
+          }
+          renderItem={({ item }) => (
+            <Card variant="elevated" style={styles.productCard}>
+              <View style={styles.imgPlaceholder}>
+                {item.images && item.images.length > 0 && typeof item.images[0] === 'string' ? (
+                  <Image source={{ uri: item.images[0] }} style={{ width: '100%', height: '100%', resizeMode: 'cover', borderRadius: borderRadius.md }} />
+                ) : (
+                  <MaterialCommunityIcons
+                    name={item.category === 'food' ? 'food-drumstick' : item.category === 'medication' ? 'pill' : 'paw'}
+                    size={48}
+                    color={colors.primary}
+                  />
+                )}
+                {item.salePrice && (
+                  <View style={styles.saleBadge}>
+                    <Text style={styles.saleBadgeText}>OFERTA</Text>
+                  </View>
+                )}
+              </View>
 
-            <Text style={styles.productBrand}>{item.brand}</Text>
-            <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+              <Text style={styles.productBrand}>{item.brand}</Text>
+              <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
 
-            <View style={styles.priceRow}>
-              <Text style={styles.price}>${(item.salePrice || item.price).toLocaleString('es-AR')}</Text>
-              {item.salePrice && (
-                <Text style={styles.oldPrice}>${item.price.toLocaleString('es-AR')}</Text>
-              )}
-            </View>
+              <View style={styles.priceRow}>
+                <Text style={styles.price}>${(item.salePrice || item.price).toLocaleString('es-AR')}</Text>
+                {item.salePrice && (
+                  <Text style={styles.oldPrice}>${item.price.toLocaleString('es-AR')}</Text>
+                )}
+              </View>
 
-            <Button
-              title="Agregar"
-              onPress={() => handleAddToCart(item)}
-              variant="primary"
-              size="sm"
-              fullWidth
-              style={{ marginTop: spacing.sm }}
-            />
-          </Card>
-        )}
-      />
+              <Button
+                title={(item.stock ?? 0) <= 0 ? 'Sin stock' : 'Agregar'}
+                onPress={() => handleAddToCart(item)}
+                variant="primary"
+                size="sm"
+                fullWidth
+                disabled={(item.stock ?? 0) <= 0}
+                style={{ marginTop: spacing.sm }}
+              />
+            </Card>
+          )}
+        />
+      )}
 
       {/* Cart Modal */}
       <Modal visible={cartModalVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {checkoutStep === 'cart' ? 'Mi Carrito 🛒' : checkoutStep === 'shipping' ? 'Envío 🚚' : 'Pago 💳'}
+              {checkoutStep === 'cart' ? 'Mi Carrito 🛒' : checkoutStep === 'shipping' ? 'Envío 🚚' : checkoutStep === 'payment' ? 'Pago 💳' : '¡Listo! 🎉'}
             </Text>
             <TouchableOpacity onPress={() => { setCartModalVisible(false); setCheckoutStep('cart'); }}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
@@ -211,7 +404,49 @@ export const ShopScreen: React.FC = () => {
 
               {items.length > 0 && (
                 <View style={styles.cartFooter}>
+                  {/* Cupón de descuento */}
+                  {couponCode ? (
+                    <View style={styles.appliedCouponBox}>
+                      <MaterialCommunityIcons name="ticket-percent" size={18} color={colors.success} />
+                      <Text style={styles.appliedCouponText}>
+                        {couponCode} — Ahorrás ${getDiscount().toLocaleString('es-AR')}
+                      </Text>
+                      <TouchableOpacity onPress={removeCoupon}>
+                        <MaterialCommunityIcons name="close-circle" size={20} color={colors.textLight} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.couponRow}>
+                      <View style={{ flex: 1, marginRight: spacing.sm }}>
+                        <Input
+                          placeholder="🎟️ Código de descuento"
+                          value={couponInput}
+                          onChangeText={(v) => { setCouponInput(v); setCouponError(''); }}
+                          containerStyle={{ marginBottom: 0 }}
+                          autoCapitalize="characters"
+                        />
+                      </View>
+                      <Button
+                        title="Aplicar"
+                        onPress={handleApplyCoupon}
+                        variant="outline"
+                        size="md"
+                        loading={applyingCoupon}
+                        disabled={!couponInput.trim()}
+                      />
+                    </View>
+                  )}
+                  {couponError ? <Text style={styles.couponError}>{couponError}</Text> : null}
+
                   <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>
+                      {getDiscount() > 0 ? `Subtotal (con ${couponCode})` : 'Total:'}
+                    </Text>
+                    {getDiscount() > 0 ? (
+                      <Text style={styles.oldTotal}>${getSubtotal().toLocaleString('es-AR')}</Text>
+                    ) : null}
+                  </View>
+                  <View style={[styles.totalRow, { marginTop: 0 }]}>
                     <Text style={styles.totalLabel}>Total:</Text>
                     <Text style={styles.totalValue}>${getTotal().toLocaleString('es-AR')}</Text>
                   </View>
@@ -230,9 +465,32 @@ export const ShopScreen: React.FC = () => {
           {checkoutStep === 'shipping' && (
             <ScrollView contentContainerStyle={{ padding: spacing.xl }}>
               <Text style={styles.sectionTitle}>Dirección de entrega</Text>
-              <Input label="Calle y Número" placeholder="Ej: Calle 7 N° 1234" />
-              <Input label="Depto / Piso" placeholder="Ej: 3 B (Opcional)" />
-              <Input label="Notas para el repartidor" placeholder="Ej: Tocar timbre 3..." />
+              <Input
+                label="Calle"
+                placeholder="Ej: Calle 7"
+                value={shippingStreet}
+                onChangeText={setShippingStreet}
+              />
+              <Input
+                label="Número"
+                placeholder="Ej: 1234"
+                value={shippingNumber}
+                onChangeText={setShippingNumber}
+                keyboardType="number-pad"
+              />
+              <Input
+                label="Depto / Piso (Opcional)"
+                placeholder="Ej: 3 B"
+                value={shippingApartment}
+                onChangeText={setShippingApartment}
+              />
+              <Input
+                label="Notas para el repartidor (Opcional)"
+                placeholder="Ej: Tocar timbre 3..."
+                value={shippingNotes}
+                onChangeText={setShippingNotes}
+                multiline
+              />
 
               <Button
                 title="Continuar al Pago →"
@@ -249,36 +507,56 @@ export const ShopScreen: React.FC = () => {
             <ScrollView contentContainerStyle={{ padding: spacing.xl }}>
               <Text style={styles.sectionTitle}>Método de Pago</Text>
 
-              <TouchableOpacity style={styles.paymentOptionActive}>
-                <MaterialCommunityIcons name="credit-card" size={28} color={colors.primaryDark} />
+              <TouchableOpacity
+                style={paymentMethod === 'mercadopago' ? styles.paymentOptionActive : styles.paymentOption}
+                onPress={() => setPaymentMethod('mercadopago')}
+              >
+                <MaterialCommunityIcons name="credit-card" size={28} color={paymentMethod === 'mercadopago' ? colors.primaryDark : colors.textMuted} />
                 <View style={{ marginLeft: spacing.md }}>
                   <Text style={styles.paymentTitle}>Mercado Pago</Text>
                   <Text style={styles.paymentSub}>Tarjetas, Débito, Dinero en cuenta</Text>
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.paymentOption}>
-                <MaterialCommunityIcons name="bank-transfer" size={28} color={colors.textMuted} />
+              <TouchableOpacity
+                style={paymentMethod === 'transfer' ? styles.paymentOptionActive : styles.paymentOption}
+                onPress={() => setPaymentMethod('transfer')}
+              >
+                <MaterialCommunityIcons name="bank-transfer" size={28} color={paymentMethod === 'transfer' ? colors.primaryDark : colors.textMuted} />
                 <View style={{ marginLeft: spacing.md }}>
                   <Text style={styles.paymentTitle}>Transferencia Bancaria</Text>
-                  <Text style={styles.paymentSub}>Subir comprobante</Text>
+                  <Text style={styles.paymentSub}>Te enviaremos los datos por WhatsApp</Text>
                 </View>
               </TouchableOpacity>
 
               <Button
-                title={`Pagar $${getTotal().toLocaleString('es-AR')}`}
-                onPress={() => {
-                  clearCart();
-                  setCheckoutStep('cart');
-                  setCartModalVisible(false);
-                  Alert.alert('¡Pedido Confirmado! 🎉', 'Tu compra fue procesada con éxito. Te avisaremos cuando esté en camino.');
-                }}
+                title={placingOrder ? 'Procesando...' : `Confirmar pedido $${getTotal().toLocaleString('es-AR')}`}
+                onPress={handlePlaceOrder}
+                loading={placingOrder}
                 variant="accent"
                 size="lg"
                 fullWidth
                 style={{ marginTop: spacing.xl }}
               />
             </ScrollView>
+          )}
+
+          {checkoutStep === 'success' && (
+            <View style={styles.successState}>
+              <MaterialCommunityIcons name="check-circle" size={80} color={colors.success} />
+              <Text style={styles.successTitle}>¡Pedido Confirmado! 🎉</Text>
+              <Text style={styles.successDesc}>
+                Tu compra fue registrada. Te avisaremos por notificaciones cuando esté en camino.
+              </Text>
+              <Button
+                title="Seguir comprando"
+                onPress={() => { setCartModalVisible(false); setCheckoutStep('cart'); }}
+                variant="primary"
+                size="lg"
+                fullWidth
+                style={{ marginTop: spacing.xl }}
+              />
+            </View>
           )}
         </View>
       </Modal>
@@ -289,7 +567,7 @@ export const ShopScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing.sm },
-  title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark },
+  title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark, letterSpacing: 0.4 },
   subtitle: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted },
   cartBtn: { position: 'relative', padding: spacing.xs },
   cartBadge: { position: 'absolute', top: 0, right: 0, backgroundColor: colors.danger, borderRadius: 10, width: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
@@ -304,8 +582,11 @@ const styles = StyleSheet.create({
   catItemActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
   catText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.sm, color: colors.textMuted },
   catTextActive: { color: colors.accentDark, fontFamily: fonts.nunito.bold },
-  productList: { paddingHorizontal: spacing.lg, paddingBottom: spacing['3xl'] },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  productList: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   columnWrapper: { justifyContent: 'space-between' },
+  emptyProducts: { alignItems: 'center', marginTop: spacing['3xl'] },
+  emptyProductsText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.sm, color: colors.textMuted, marginTop: spacing.md },
   productCard: { width: '48%', padding: spacing.md, marginBottom: spacing.md },
   imgPlaceholder: { width: '100%', height: 110, backgroundColor: colors.primarySoft, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm, position: 'relative' },
   saleBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: colors.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -327,14 +608,22 @@ const styles = StyleSheet.create({
   qtyContainer: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   qtyText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.md, paddingHorizontal: spacing.xs },
   cartFooter: { padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgCard },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   totalLabel: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark },
   totalValue: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.primaryDark },
+  oldTotal: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.md, color: colors.textMuted, textDecorationLine: 'line-through' },
+  couponRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
+  couponError: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.danger, marginBottom: spacing.sm },
+  appliedCouponBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.successSoft, padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },
+  appliedCouponText: { flex: 1, fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.successDark },
   sectionTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.lg, color: colors.textDark, marginBottom: spacing.md },
   paymentOption: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard, marginBottom: spacing.md },
   paymentOptionActive: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, borderRadius: 16, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft, marginBottom: spacing.md },
   paymentTitle: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.md, color: colors.textDark },
   paymentSub: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted },
+  successState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing['2xl'] },
+  successTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark, marginTop: spacing.lg },
+  successDesc: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.md, color: colors.textMuted, textAlign: 'center', marginTop: spacing.sm, lineHeight: 22 },
 });
 
 export default ShopScreen;

@@ -1,18 +1,35 @@
 // ============================================================
 // Veterinaria La Plata — Waiting Room Queue Service
 // ============================================================
+import {
+  collection,
+  doc,
+  addDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  Unsubscribe,
+} from 'firebase/firestore';
+import { db, DEMO_MODE } from '../config/firebase';
+
 export interface QueueItem {
   id: string;
-  ticketNumber: string; // e.g., "A-01", "A-02"
+  ticketNumber: string;
   petName: string;
+  petId?: string;
+  ownerId?: string;
   ownerName: string;
-  reason: string; // e.g., "Consulta Clínica", "Vacunación", "Peluquería"
-  doctorOrRoom?: string; // e.g., "Consultorio 1 (Dr. Fernández)"
+  reason: string;
+  doctorOrRoom?: string;
   arrivalTime: Date;
   status: 'waiting' | 'calling' | 'in_consultation' | 'completed';
 }
 
-export let MOCK_QUEUE: QueueItem[] = [
+// --- MOCK DATA (solo DEMO_MODE) ---
+let MOCK_QUEUE: QueueItem[] = [
   {
     id: 'q-1',
     ticketNumber: 'A-01',
@@ -45,34 +62,87 @@ export let MOCK_QUEUE: QueueItem[] = [
   },
 ];
 
-let ticketCounter = 4;
+const toDate = (value: any, fallback = new Date()): Date =>
+  value?.toDate ? value.toDate() : value instanceof Date ? value : fallback;
+
+const mapQueueItem = (id: string, data: any): QueueItem => ({
+  id,
+  ...data,
+  arrivalTime: toDate(data?.arrivalTime),
+});
+
+let mockTicketCounter = 4;
 
 export const getQueue = async (): Promise<QueueItem[]> => {
-  return MOCK_QUEUE;
+  try {
+    const snapshot = await getDocs(query(collection(db, 'waitingRoom'), orderBy('arrivalTime', 'asc')));
+    return snapshot.docs.map((d) => mapQueueItem(d.id, d.data()));
+  } catch (error) {
+    if (!DEMO_MODE) throw error;
+    return [...MOCK_QUEUE];
+  }
+};
+
+export const subscribeToQueue = (onChange: (items: QueueItem[]) => void): Unsubscribe => {
+  const q = query(collection(db, 'waitingRoom'), orderBy('arrivalTime', 'asc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onChange(snapshot.docs.map((d) => mapQueueItem(d.id, d.data())));
+    },
+    (error) => {
+      console.log('subscribeToQueue error:', error);
+      if (DEMO_MODE) onChange([...MOCK_QUEUE]);
+    }
+  );
 };
 
 export const addToQueue = async (
   petName: string,
   ownerName: string,
   reason: string,
-  doctorOrRoom?: string
+  doctorOrRoom?: string,
+  petId?: string
 ): Promise<QueueItem> => {
-  const newNum = ticketCounter < 10 ? `A-0${ticketCounter}` : `A-${ticketCounter}`;
-  ticketCounter++;
-
-  const newItem: QueueItem = {
-    id: `q-${Date.now()}`,
-    ticketNumber: newNum,
-    petName,
-    ownerName,
-    reason,
-    doctorOrRoom: doctorOrRoom || 'Consultorio 1',
-    arrivalTime: new Date(),
-    status: 'waiting',
-  };
-
-  MOCK_QUEUE = [...MOCK_QUEUE, newItem];
-  return newItem;
+  try {
+    const docRef = await addDoc(collection(db, 'waitingRoom'), {
+      petName,
+      ...(petId ? { petId } : {}),
+      ownerName,
+      reason,
+      doctorOrRoom: doctorOrRoom || 'Consultorio 1',
+      arrivalTime: new Date(),
+      status: 'waiting',
+    });
+    return {
+      id: docRef.id,
+      petName,
+      petId,
+      ownerName,
+      reason,
+      doctorOrRoom: doctorOrRoom || 'Consultorio 1',
+      arrivalTime: new Date(),
+      status: 'waiting',
+      ticketNumber: `A-${docRef.id.slice(0, 4).toUpperCase()}`,
+    };
+  } catch (error) {
+    if (!DEMO_MODE) throw error;
+    const newNum = mockTicketCounter < 10 ? `A-0${mockTicketCounter}` : `A-${mockTicketCounter}`;
+    mockTicketCounter++;
+    const newItem: QueueItem = {
+      id: `q-${Date.now()}`,
+      ticketNumber: newNum,
+      petName,
+      petId,
+      ownerName,
+      reason,
+      doctorOrRoom: doctorOrRoom || 'Consultorio 1',
+      arrivalTime: new Date(),
+      status: 'waiting',
+    };
+    MOCK_QUEUE.push(newItem);
+    return newItem;
+  }
 };
 
 export const updateQueueStatus = async (
@@ -80,15 +150,29 @@ export const updateQueueStatus = async (
   status: QueueItem['status'],
   doctorOrRoom?: string
 ): Promise<QueueItem | null> => {
-  const item = MOCK_QUEUE.find(q => q.id === id);
-  if (item) {
-    item.status = status;
-    if (doctorOrRoom) item.doctorOrRoom = doctorOrRoom;
-    return item;
+  try {
+    await updateDoc(doc(db, 'waitingRoom', id), {
+      status,
+      ...(doctorOrRoom ? { doctorOrRoom } : {}),
+    });
+    return { id, status, doctorOrRoom } as QueueItem;
+  } catch (error) {
+    if (!DEMO_MODE) throw error;
+    const item = MOCK_QUEUE.find((q) => q.id === id);
+    if (item) {
+      item.status = status;
+      if (doctorOrRoom) item.doctorOrRoom = doctorOrRoom;
+      return item;
+    }
+    return null;
   }
-  return null;
 };
 
 export const removeFromQueue = async (id: string): Promise<void> => {
-  MOCK_QUEUE = MOCK_QUEUE.filter(q => q.id !== id);
+  try {
+    await deleteDoc(doc(db, 'waitingRoom', id));
+  } catch (error) {
+    if (!DEMO_MODE) throw error;
+    MOCK_QUEUE = MOCK_QUEUE.filter((q) => q.id !== id);
+  }
 };

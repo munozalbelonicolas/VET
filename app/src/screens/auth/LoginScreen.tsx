@@ -14,13 +14,12 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { colors, fonts, fontSizes, spacing, shadows } from '../../config/theme';
+import { colors, fonts, fontSizes, spacing, shadows, letterSpacing } from '../../config/theme';
 import { Button, Input, Logo } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { loginWithEmail, loginWithGoogleCredential, mockLogin } from '../../services/authService';
+import { DEMO_MODE } from '../../config/firebase';
 import { AuthStackParamList } from '../../types';
-import { auth } from '../../config/firebase';
-import { signInAnonymously } from 'firebase/auth';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -66,19 +65,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Try mock login first (for development)
+      // Demo mode: cuentas de prueba locales (solo con EXPO_PUBLIC_DEMO_MODE=true)
       const mockUser = mockLogin(email);
       if (mockUser) {
-        try {
-          await signInAnonymously(auth);
-        } catch (e) {
-          console.log('Error in anonymous auth:', e);
-        }
         setUser(mockUser);
         return;
       }
 
-      // Try Firebase login
+      // Firebase login
       const user = await loginWithEmail(email, password);
       setUser(user);
     } catch (error: any) {
@@ -212,16 +206,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Dev accounts info */}
-        <View style={styles.devInfo}>
-          <Text style={styles.devInfoTitle}>🧪 Cuentas de prueba:</Text>
-          <Text style={styles.devInfoText}>cliente@mascota.com (cliente)</Text>
-          <Text style={styles.devInfoText}>vet@soyvet.com (veterinario)</Text>
-          <Text style={styles.devInfoText}>peluquero@pelu.com (peluquero)</Text>
-          <Text style={styles.devInfoText}>recep@admin.com (recepcionista)</Text>
-          <Text style={styles.devInfoText}>admin@soyveterinario.com (admin)</Text>
-          <Text style={styles.devInfoHint}>Contraseña: cualquiera (6+ chars)</Text>
-        </View>
+        {/* Dev accounts info (solo demo mode) */}
+        {DEMO_MODE && (
+          <View style={styles.devInfo}>
+            <Text style={styles.devInfoTitle}>🧪 Cuentas de prueba:</Text>
+            <Text style={styles.devInfoText}>cliente@mascota.com (cliente)</Text>
+            <Text style={styles.devInfoText}>vet@soyvet.com (veterinario)</Text>
+            <Text style={styles.devInfoText}>peluquero@pelu.com (peluquero)</Text>
+            <Text style={styles.devInfoText}>recep@admin.com (recepcionista)</Text>
+            <Text style={styles.devInfoText}>admin@soyveterinario.com (admin)</Text>
+            <Text style={styles.devInfoHint}>Contraseña: cualquiera (6+ chars)</Text>
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -248,6 +244,7 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     textAlign: 'center',
     marginBottom: spacing.sm,
+    letterSpacing: letterSpacing.tight,
   },
   welcomeSubtitle: {
     fontFamily: fonts.nunito.regular,
@@ -260,6 +257,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: 24,
     padding: spacing.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
     ...shadows.lg,
   },
   forgotPassword: {

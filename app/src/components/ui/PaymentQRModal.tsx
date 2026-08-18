@@ -16,6 +16,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 import { Card, Button, Input, Badge } from './index';
+import { DEMO_MODE } from '../../config/firebase';
 
 interface PaymentQRModalProps {
   visible: boolean;
@@ -163,13 +164,15 @@ export const PaymentQRModal: React.FC<PaymentQRModalProps> = ({
 
               {paymentStatus === 'pending' ? (
                 <View style={styles.actionButtons}>
-                  <Button
-                    title="✓ Simular Pago Aprobado"
-                    onPress={handleSimulatePaymentSuccess}
-                    variant="accent"
-                    size="md"
-                    fullWidth
-                  />
+                  {DEMO_MODE && (
+                    <Button
+                      title="✓ Simular Pago Aprobado (demo)"
+                      onPress={handleSimulatePaymentSuccess}
+                      variant="accent"
+                      size="md"
+                      fullWidth
+                    />
+                  )}
                   <Button
                     title="Cambiar Monto"
                     onPress={() => setQrGenerated(false)}

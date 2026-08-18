@@ -21,6 +21,87 @@ export type TimeSlot = 'morning' | 'afternoon';
 
 export type MedicalRecordType = 'consultation' | 'vaccination' | 'study' | 'surgery' | 'deworming';
 
+export type AttachmentKind = 'image' | 'pdf' | 'lab';
+
+export interface Attachment {
+  url: string;
+  kind: AttachmentKind;
+  caption?: string;
+}
+
+export interface Vitals {
+  temperatureC?: number;
+  heartRate?: number;
+  respiratoryRate?: number;
+  weightKg?: number;
+  bodyCondition?: 1 | 2 | 3 | 4 | 5; // 1=caquexia, 5=obesidad
+}
+
+export interface MedicationDose {
+  name: string;
+  via: string; // oral, tópica, inyectable, ótica...
+  dose: string; // ej: "5 gotas", "1/4 comprimido"
+  frequency: string; // ej: "cada 12 hs"
+  duration?: string; // ej: "7 días"
+  instructions?: string;
+}
+
+export type PrescriptionStatus = 'active' | 'completed' | 'cancelled';
+
+export interface Prescription {
+  id: string;
+  petId: string;
+  petName: string;
+  medicalRecordId?: string;
+  vetId: string;
+  vetName: string;
+  medications: MedicationDose[];
+  indications?: string;
+  issuedAt: Date;
+  status: PrescriptionStatus;
+  createdAt: Date;
+}
+
+export interface ClinicalTemplate {
+  id: string;
+  name: string;
+  type: MedicalRecordType;
+  diagnosis?: string;
+  treatment?: string;
+  medications: MedicationDose[];
+  observations?: string;
+  category?: string;
+  active: boolean;
+  createdBy: string;
+  createdAt: Date;
+}
+
+export type FollowUpStatus = 'pending' | 'done' | 'overdue';
+
+export interface FollowUp {
+  id: string;
+  petId: string;
+  petName: string;
+  ownerId: string;
+  vetId: string;
+  title: string;
+  description?: string;
+  dueDate: Date;
+  status: FollowUpStatus;
+  relatedRecordId?: string;
+  createdAt: Date;
+  completedAt?: Date;
+}
+
+export interface TimelineEvent {
+  id: string;
+  kind: 'medical' | 'grooming' | 'appointment';
+  date: Date;
+  title: string;
+  subtitle?: string;
+  data: MedicalRecord | GroomingRecord | Appointment;
+}
+
 export type GroomingServiceType = 'bath' | 'haircut' | 'bath_and_haircut' | 'detangling' | 'skin_treatment' | 'nail_trim' | 'ear_cleaning';
 
 export type OrderPaymentMethod = 'mercadopago' | 'transfer';
@@ -61,6 +142,8 @@ export interface User {
   avatarUrl?: string;
   fcmTokens: string[];
   notificationPrefs: NotificationPreferences;
+  active?: boolean;
+  specialty?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +182,7 @@ export interface Pet {
   ownerName?: string;
   healthStatus: HealthStatus;
   notes?: string;
+  searchTokens?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -130,11 +214,17 @@ export interface MedicalRecord {
   date: Date;
   diagnosis?: string;
   treatment?: string;
-  medication?: string;
+  medication?: string; // legado: texto libre (migrado a medicationDoses)
+  medicationDoses?: MedicationDose[];
+  vitals?: Vitals;
   observations?: string;
   nextDoseDate?: Date;
-  attachments: string[];
+  attachments: Attachment[];
+  searchTokens?: string[];
+  createdBy: string;
+  updatedBy: string;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface GroomingRecord {
@@ -256,6 +346,17 @@ export interface Campaign {
   stats: CampaignStats;
   createdBy: string;
   status: CampaignStatus;
+  couponCode?: string;
+  createdAt: Date;
+}
+
+export interface AdminLog {
+  id: string;
+  adminId: string;
+  adminName?: string;
+  action: string;
+  target?: string;
+  details?: string;
   createdAt: Date;
 }
 
