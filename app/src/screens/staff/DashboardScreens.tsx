@@ -55,25 +55,25 @@ export const VetDashboardScreen: React.FC = () => {
 
   if (currentView === 'clinical') {
     return (
-      <View style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
         <TouchableOpacity style={styles.topBackBar} onPress={() => setCurrentView('dashboard')}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textDark} />
           <Text style={styles.topBackText}>Volver al Dashboard</Text>
         </TouchableOpacity>
         <VetClinicalScreen />
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (currentView === 'schedule') {
     return (
-      <View style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
         <TouchableOpacity style={styles.topBackBar} onPress={() => setCurrentView('dashboard')}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textDark} />
           <Text style={styles.topBackText}>Volver al Dashboard</Text>
         </TouchableOpacity>
         <VetScheduleScreen />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -139,13 +139,13 @@ export const GroomerDashboardScreen: React.FC = () => {
 
   if (currentView === 'hub') {
     return (
-      <View style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
         <TouchableOpacity style={styles.topBackBar} onPress={() => setCurrentView('dashboard')}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textDark} />
           <Text style={styles.topBackText}>Volver al Dashboard</Text>
         </TouchableOpacity>
         <GroomingHubScreen />
-      </View>
+      </SafeAreaView>
     );
   }
 
