@@ -45,7 +45,7 @@ export const VetScheduleScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  header: { padding: spacing.xl, paddingBottom: spacing.sm, paddingTop: spacing['2xl'] },
+  header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, paddingTop: spacing.md },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
   subtitle: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginTop: spacing.xs },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },

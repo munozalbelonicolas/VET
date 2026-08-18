@@ -4,6 +4,7 @@
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, shadows, borderRadius } from '../../config/theme';
 import { Card, Button } from '../../components/ui';
@@ -325,7 +326,7 @@ export const AdminDashboardScreen: React.FC = () => {
       currentView === 'followups' ||
       currentView === 'logs';
     return (
-      <View style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
         <TouchableOpacity style={styles.topBackBar} onPress={() => setCurrentView('dashboard')}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textDark} />
           <Text style={styles.topBackText}>Volver al Panel Principal</Text>
@@ -335,7 +336,7 @@ export const AdminDashboardScreen: React.FC = () => {
         ) : isHubTab ? (
           <AdminHubScreen initialTab={currentView as AdminHubScreenTab} />
         ) : null}
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -490,7 +491,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing['3xl'] },
   noAccess: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMain },
   noAccessText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.md, color: colors.textMuted, marginTop: spacing.md },
-  topBackBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing.xs, backgroundColor: colors.bgMain },
+  topBackBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm, backgroundColor: colors.bgMain, borderBottomWidth: 1, borderBottomColor: colors.border },
   topBackText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark, marginLeft: spacing.xs },
   greeting: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes['2xl'], color: colors.textDark },
   subGreeting: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.md, color: colors.textMuted, marginTop: spacing.xs },

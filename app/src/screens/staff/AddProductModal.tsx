@@ -141,7 +141,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onPro
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{isEditing ? 'Editar Producto 📦' : 'Nuevo Producto 📦'}</Text>
+        <Text style={styles.title}>{isEditing ? 'Editar Producto' : 'Nuevo Producto'}</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
           <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
         </TouchableOpacity>

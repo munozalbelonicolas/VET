@@ -131,7 +131,7 @@ export const VetClinicalScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Historias Clínicas 🩺</Text>
+          <Text style={styles.title}>Historias Clínicas</Text>
           <Text style={styles.subtitle}>Buscá pacientes y abrí su expediente</Text>
         </View>
       </View>
@@ -213,7 +213,7 @@ export const VetClinicalScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing.md },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark, letterSpacing: letterSpacing.display },
   subtitle: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.sm, color: colors.textMuted, marginTop: 2 },
   sectionLabel: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark, paddingHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.xs },

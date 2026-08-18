@@ -156,7 +156,7 @@ export const CouponsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Cupones de Descuento 🎟️</Text>
+        <Text style={styles.title}>Cupones de Descuento</Text>
         <Button title="+ Nuevo cupón" size="sm" variant="primary" onPress={openCreate} />
       </View>
 
@@ -297,7 +297,7 @@ export const CouponsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing.sm },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
   list: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
   emptyCard: { alignItems: 'center', padding: spacing.xl, gap: spacing.sm },

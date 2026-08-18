@@ -146,7 +146,7 @@ export const MarketingScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Campañas Marketing 📢</Text>
+        <Text style={styles.title}>Campañas Marketing</Text>
         <Button title="+ Nueva Campaña" onPress={() => setModalVisible(true)} variant="accent" size="sm" />
       </View>
 
@@ -291,7 +291,7 @@ export const MarketingScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgMain },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing['2xl'], paddingBottom: spacing.sm },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing['3xl'] },
   sectionTitle: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.md, color: colors.textDark, marginBottom: spacing.md },
