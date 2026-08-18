@@ -244,3 +244,19 @@ export async function updateAppointment(appointmentId: string, data: Partial<App
 export async function deleteAppointment(appointmentId: string): Promise<void> {
   await deleteDoc(doc(db, 'appointments', appointmentId));
 }
+
+export async function updateUserProfile(
+  userId: string,
+  data: Partial<Pick<User, 'name' | 'phone' | 'avatarUrl'>>
+): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating user profile in Firestore:', error);
+    // Silently fail — mock mode doesn't persist profile changes
+  }
+}

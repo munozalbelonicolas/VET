@@ -61,10 +61,5 @@
       "@react-native-google-signin/google-signin",
       "@react-native-community/datetimepicker"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "your-eas-project-id"
-      }
-    }
   }
 }
