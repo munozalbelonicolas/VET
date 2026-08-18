@@ -130,6 +130,20 @@ export const WaitingRoomTVDisplay: React.FC<WaitingRoomTVDisplayProps> = ({ onCl
           )}
         </View>
       </ScrollView>
+
+      {/* Floating Bottom-Right Back Button (Smart TV / Mobile / Web friendly) */}
+      {onClose && (
+        <TouchableOpacity
+          style={styles.floatingBackBtn}
+          onPress={onClose}
+          activeOpacity={0.8}
+          accessibilityLabel="Volver al panel"
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
+          <Text style={styles.floatingBackText}>Volver</Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -154,7 +168,32 @@ const styles = StyleSheet.create({
   clockText: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: '#6FFFE9' },
   dateText: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: '#A5C4D4', textTransform: 'capitalize' },
   closeBtn: { padding: spacing.xs, backgroundColor: '#3A506B', borderRadius: borderRadius.sm, marginLeft: spacing.md },
-  tvContent: { padding: spacing.xl },
+  tvContent: { padding: spacing.xl, paddingBottom: 100 },
+  floatingBackBtn: {
+    position: 'absolute',
+    bottom: spacing.xl,
+    right: spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: '#3A506B',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: '#6FFFE9',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    zIndex: 999,
+  },
+  floatingBackText: {
+    fontFamily: fonts.nunito.bold,
+    fontSize: fontSizes.md,
+    color: '#FFF',
+  },
   callingBox: {
     backgroundColor: '#1C2541',
     borderRadius: borderRadius.xl,
