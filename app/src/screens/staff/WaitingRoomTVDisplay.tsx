@@ -9,6 +9,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius, shadows } from '../../config/theme';
 import { Card, Badge, Button } from '../../components/ui';
@@ -38,14 +39,14 @@ export const WaitingRoomTVDisplay: React.FC<WaitingRoomTVDisplayProps> = ({ onCl
   const waitingQueue = queue.filter(q => q.status === 'waiting');
 
   return (
-    <View style={styles.tvContainer}>
+    <SafeAreaView style={styles.tvContainer} edges={['top', 'left', 'right']}>
       {/* TV Header */}
       <View style={styles.tvHeader}>
         <View style={styles.brandRow}>
           <MaterialCommunityIcons name="hospital-building" size={32} color="#009EE3" />
           <View>
             <Text style={styles.tvBrandTitle}>VETERINARIA LA PLATA</Text>
-            <Text style={styles.tvBrandSub}>Turnero de Sala de Espera 📺</Text>
+            <Text style={styles.tvBrandSub}>Turnero de Sala de Espera</Text>
           </View>
         </View>
 
@@ -129,7 +130,7 @@ export const WaitingRoomTVDisplay: React.FC<WaitingRoomTVDisplayProps> = ({ onCl
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -140,7 +141,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
     backgroundColor: '#1C2541',
     borderBottomWidth: 2,
