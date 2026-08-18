@@ -15,7 +15,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, DEMO_MODE } from '../config/firebase';
-import { Pet, Appointment } from '../types';
+import { Pet, Appointment, User } from '../types';
 import { buildSearchTokens } from './searchUtils';
 
 // --- MOCK DATA (solo DEMO_MODE) ---

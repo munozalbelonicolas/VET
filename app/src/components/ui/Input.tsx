@@ -1,14 +1,15 @@
 // ============================================================
 // Veterinaria La Plata — Input Component
-// Premium: focus ring suave, labels refinados, radii coherentes
+// Premium: focus ring suave, labels refinados, radii coherentes, touch-to-focus
 // ============================================================
-import React, { useState } from 'react';
+import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   TextInput,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ViewStyle,
   TextInputProps,
 } from 'react-native';
@@ -26,7 +27,7 @@ interface InputProps extends TextInputProps {
   isPassword?: boolean;
 }
 
-const Input: React.FC<InputProps> = ({
+const Input = forwardRef<TextInput, InputProps>(({
   label,
   error,
   hint,
@@ -36,10 +37,19 @@ const Input: React.FC<InputProps> = ({
   containerStyle,
   isPassword,
   style,
+  onFocus,
+  onBlur,
   ...props
-}) => {
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useImperativeHandle(ref, () => inputRef.current as TextInput);
+
+  const focusInput = () => {
+    inputRef.current?.focus();
+  };
 
   const borderColor = error
     ? colors.danger
@@ -50,10 +60,15 @@ const Input: React.FC<InputProps> = ({
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
-        <Text style={[styles.label, error && styles.labelError]}>{label}</Text>
+        <Pressable onPress={focusInput}>
+          <Text style={[styles.label, error && styles.labelError]}>{label}</Text>
+        </Pressable>
       )}
 
-      <View style={[styles.inputContainer, { borderColor }, isFocused && !error && styles.focusRing]}>
+      <Pressable
+        onPress={focusInput}
+        style={[styles.inputContainer, { borderColor }, isFocused && !error && styles.focusRing]}
+      >
         {leftIcon && (
           <MaterialCommunityIcons
             name={leftIcon}
@@ -64,10 +79,17 @@ const Input: React.FC<InputProps> = ({
         )}
 
         <TextInput
+          ref={inputRef}
           style={[styles.input, leftIcon && { paddingLeft: 0 }, style]}
           placeholderTextColor={colors.textLight}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
           secureTextEntry={isPassword && !showPassword}
           {...props}
         />
@@ -98,13 +120,15 @@ const Input: React.FC<InputProps> = ({
             />
           </TouchableOpacity>
         )}
-      </View>
+      </Pressable>
 
       {error && <Text style={styles.error}>{error}</Text>}
       {hint && !error && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: {
