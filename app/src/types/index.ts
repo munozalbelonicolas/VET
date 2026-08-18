@@ -102,7 +102,7 @@ export interface TimelineEvent {
   data: MedicalRecord | GroomingRecord | Appointment;
 }
 
-export type GroomingServiceType = 'bath' | 'haircut' | 'bath_and_haircut' | 'detangling' | 'skin_treatment' | 'nail_trim' | 'ear_cleaning';
+export type GroomingServiceType = 'bath' | 'haircut' | 'bath_and_haircut' | 'hygienic_cut' | 'detangling' | 'skin_treatment' | 'nail_trim' | 'ear_cleaning';
 
 export type OrderPaymentMethod = 'mercadopago' | 'transfer';
 
@@ -227,6 +227,7 @@ export interface MedicalRecord {
   updatedAt: Date;
 }
 
+
 export interface GroomingRecord {
   id: string;
   petId: string;
@@ -235,7 +236,9 @@ export interface GroomingRecord {
   groomerName: string;
   date: Date;
   serviceType: GroomingServiceType;
+  haircutStyle?: string;
   productsUsed: string[];
+  photos?: string[];
   observations?: string;
   nextVisitRecommended?: Date;
   createdAt: Date;

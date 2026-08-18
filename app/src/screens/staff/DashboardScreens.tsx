@@ -133,23 +133,9 @@ export const VetDashboardScreen: React.FC = () => {
 
 // --- Groomer Dashboard ---
 export const GroomerDashboardScreen: React.FC = () => {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'hub'>('dashboard');
-
-  if (currentView === 'hub') {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
-        <TouchableOpacity style={styles.topBackBar} onPress={() => setCurrentView('dashboard')}>
-          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textDark} />
-          <Text style={styles.topBackText}>Volver al Dashboard</Text>
-        </TouchableOpacity>
-        <GroomingHubScreen />
-      </SafeAreaView>
-    );
-  }
-
-  if (user?.role !== 'groomer') {
+  if (user?.role !== 'groomer' && user?.role !== 'admin') {
     return (
       <View style={styles.noAccess}>
         <MaterialCommunityIcons name="shield-lock-outline" size={48} color={colors.danger} />
@@ -160,20 +146,7 @@ export const GroomerDashboardScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgMain }} edges={['top', 'left', 'right']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.greeting}>Hola, {user?.name?.split(' ')[0] || ''}</Text>
-      <Text style={styles.date}>{new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
-
-      <Card variant="elevated" style={styles.menuCard} onPress={() => setCurrentView('hub')}>
-        <View style={styles.menuRow}>
-          <MaterialCommunityIcons name="content-cut" size={24} color={colors.primary} />
-          <Text style={styles.menuText}>Ir al Panel de Peluquería</Text>
-          <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textLight} />
-        </View>
-      </Card>
-
-      <Button title="Cerrar sesión" onPress={logout} variant="ghost" style={{ marginTop: spacing.xl }} />
-      </ScrollView>
+      <GroomingHubScreen />
     </SafeAreaView>
   );
 };
