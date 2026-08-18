@@ -15,7 +15,6 @@ import {
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, borderRadius } from '../../config/theme';
@@ -141,7 +140,14 @@ export const MedicalRecordForm: React.FC<MedicalRecordFormProps> = ({
 
   const pickPdf = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
+      let DocumentPickerModule: typeof import('expo-document-picker');
+      try {
+        DocumentPickerModule = require('expo-document-picker');
+      } catch (e) {
+        Alert.alert('Módulo no disponible', 'Para seleccionar archivos PDF de estudios se requiere actualizar el binario nativo.');
+        return;
+      }
+      const result = await DocumentPickerModule.getDocumentAsync({
         type: ['application/pdf'],
         copyToCacheDirectory: true,
         multiple: false,
