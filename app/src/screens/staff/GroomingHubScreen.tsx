@@ -1,8 +1,7 @@
 // ============================================================
 // Veterinaria La Plata — Grooming Hub Screen (Peluquería)
-// Sistema completo de gestión de turnos de peluquería,
-// historial clínico/grooming de mascota y registro detallado
-// (tipo de servicio, corte específico, productos, notas y fotos).
+// Sistema completo de gestión de turnos de peluquería, agendamiento
+// de nuevos turnos, búsqueda en tiempo real e historial clínico/grooming
 // ============================================================
 import React, { useState, useEffect } from 'react';
 import {
@@ -15,7 +14,6 @@ import {
   Alert,
   Modal,
   Image,
-  FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -28,11 +26,17 @@ import {
   MedicalRecord,
   Pet,
 } from '../../types';
-import { getAllAppointments, updateAppointment, getAllPets } from '../../services/dataService';
+import {
+  getAllAppointments,
+  updateAppointment,
+  getAllPets,
+  createAppointment,
+} from '../../services/dataService';
 import {
   addGroomingRecord,
   getGroomingRecordsByPet,
   getMedicalRecordsByPet,
+  searchPets,
 } from '../../services/staffService';
 import { uploadImage } from '../../services/storageService';
 import { useAuthStore } from '../../store/authStore';
@@ -80,8 +84,10 @@ export const GroomingHubScreen: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [petsMap, setPetsMap] = useState<Record<string, Pet>>({});
+  const [allPetsList, setAllPetsList] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modal Historial de Mascota
   const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
@@ -89,6 +95,7 @@ export const GroomingHubScreen: React.FC = () => {
   const [petMedicalRecords, setPetMedicalRecords] = useState<MedicalRecord[]>([]);
   const [historyTab, setHistoryTab] = useState<'grooming' | 'medical'>('grooming');
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
 
   // Modal Registro de Servicio
   const [activeApp, setActiveApp] = useState<Appointment | null>(null);
@@ -101,12 +108,23 @@ export const GroomingHubScreen: React.FC = () => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [savingRecord, setSavingRecord] = useState(false);
 
+  // Modal Agendar Nuevo Turno de Peluquería
+  const [newAppModalVisible, setNewAppModalVisible] = useState(false);
+  const [newPetSearch, setNewPetSearch] = useState('');
+  const [newSelectedPet, setNewSelectedPet] = useState<Pet | null>(null);
+  const [newAppDateStr, setNewAppDateStr] = useState(new Date().toISOString().split('T')[0]);
+  const [newAppTimeStr, setNewAppTimeStr] = useState('10:00');
+  const [newAppService, setNewAppService] = useState<GroomingServiceType>('bath_and_haircut');
+  const [newAppNotes, setNewAppNotes] = useState('');
+  const [creatingApp, setCreatingApp] = useState(false);
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [apps, pets] = await Promise.all([getAllAppointments(), getAllPets()]);
       const groomingApps = apps.filter((a) => a.type === 'grooming' && a.status !== 'cancelled');
       setAllAppointments(groomingApps);
+      setAllPetsList(pets);
 
       const map: Record<string, Pet> = {};
       pets.forEach((p) => {
@@ -124,9 +142,18 @@ export const GroomingHubScreen: React.FC = () => {
     loadData();
   }, []);
 
-  // Filtrar turnos del día seleccionado
+  // Filtrar turnos del día seleccionado y búsqueda global
+  const qClean = searchQuery.trim().toLowerCase();
   const dayAppointments = allAppointments
-    .filter((a) => isSameDay(new Date(a.date), selectedDate))
+    .filter((a) => {
+      const matchesDay = qClean ? true : isSameDay(new Date(a.date), selectedDate);
+      const matchesQuery =
+        !qClean ||
+        a.petName.toLowerCase().includes(qClean) ||
+        a.ownerName.toLowerCase().includes(qClean) ||
+        (petsMap[a.petId]?.breed || '').toLowerCase().includes(qClean);
+      return matchesDay && matchesQuery;
+    })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const filteredAppointments = dayAppointments.filter((a) => {
@@ -161,6 +188,7 @@ export const GroomingHubScreen: React.FC = () => {
     } as Pet);
 
     setSelectedPet(petObj);
+    setHistorySearchQuery('');
     setHistoryLoading(true);
     setHistoryTab('grooming');
 
@@ -273,6 +301,74 @@ export const GroomingHubScreen: React.FC = () => {
     }
   };
 
+  // Crear nuevo turno de peluquería
+  const handleCreateNewAppointment = async () => {
+    if (!newSelectedPet) {
+      Alert.alert('Atención', 'Seleccioná la mascota para el turno.');
+      return;
+    }
+
+    setCreatingApp(true);
+    try {
+      const [year, month, day] = newAppDateStr.split('-').map(Number);
+      const [hours, minutes] = newAppTimeStr.split(':').map(Number);
+      const appDate = new Date(year, month - 1, day, hours || 10, minutes || 0);
+
+      await createAppointment({
+        petId: newSelectedPet.id,
+        petName: newSelectedPet.name,
+        ownerId: newSelectedPet.ownerId,
+        ownerName: newSelectedPet.ownerName || 'Cliente',
+        type: 'grooming',
+        date: appDate,
+        timeSlot: hours < 13 ? 'morning' : 'afternoon',
+        status: 'confirmed',
+        notes: newAppNotes.trim() ? `${SERVICE_TYPE_OPTIONS.find(s=>s.id===newAppService)?.label}: ${newAppNotes.trim()}` : SERVICE_TYPE_OPTIONS.find(s=>s.id===newAppService)?.label,
+      });
+
+      setNewAppModalVisible(false);
+      setNewSelectedPet(null);
+      setNewPetSearch('');
+      setNewAppNotes('');
+      await loadData();
+      Alert.alert('¡Turno Agendado! 📅', `Turno de peluquería creado para ${newSelectedPet.name}.`);
+    } catch (error) {
+      console.log('handleCreateNewAppointment error:', error);
+      Alert.alert('Error', 'No se pudo agendar el turno.');
+    } finally {
+      setCreatingApp(false);
+    }
+  };
+
+  // Filtrar historial de la mascota por búsqueda
+  const hClean = historySearchQuery.trim().toLowerCase();
+  const filteredGroomingRecords = petGroomingRecords.filter((r) => {
+    if (!hClean) return true;
+    return (
+      r.serviceType.toLowerCase().includes(hClean) ||
+      (r.haircutStyle || '').toLowerCase().includes(hClean) ||
+      (r.observations || '').toLowerCase().includes(hClean) ||
+      r.productsUsed.some((p) => p.toLowerCase().includes(hClean))
+    );
+  });
+
+  const filteredMedicalRecords = petMedicalRecords.filter((m) => {
+    if (!hClean) return true;
+    return (
+      m.type.toLowerCase().includes(hClean) ||
+      (m.diagnosis || '').toLowerCase().includes(hClean) ||
+      (m.treatment || '').toLowerCase().includes(hClean) ||
+      (m.observations || '').toLowerCase().includes(hClean)
+    );
+  });
+
+  // Mascotas filtradas para el modal de nuevo turno
+  const filteredPetsForBooking = allPetsList.filter((p) => {
+    if (!newPetSearch.trim()) return true;
+    const q = newPetSearch.trim().toLowerCase();
+    return p.name.toLowerCase().includes(q) || (p.breed || '').toLowerCase().includes(q);
+  });
+
   return (
     <View style={styles.container}>
       {/* Header Peluquería */}
@@ -281,10 +377,27 @@ export const GroomingHubScreen: React.FC = () => {
           <Text style={styles.title}>Estética & Peluquería</Text>
           <Text style={styles.subtitle}>Hola, {user?.name?.split(' ')[0] || 'Peluquero'}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <MaterialCommunityIcons name="logout" size={18} color={colors.danger} />
-          <Text style={styles.logoutText}>Salir</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+          <Button
+            title="+ Agendar Turno"
+            size="sm"
+            variant="accent"
+            onPress={() => setNewAppModalVisible(true)}
+          />
+          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+            <MaterialCommunityIcons name="logout" size={18} color={colors.danger} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Buscador Global en Peluquería */}
+      <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.xs }}>
+        <Input
+          placeholder="🔍 Buscar por mascota, raza o dueño..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          containerStyle={{ marginBottom: 0 }}
+        />
       </View>
 
       {/* Date Selector / Turnero del Día */}
@@ -347,7 +460,9 @@ export const GroomingHubScreen: React.FC = () => {
           {filteredAppointments.length === 0 ? (
             <Card variant="outlined" style={styles.emptyCard}>
               <MaterialCommunityIcons name="content-cut" size={40} color={colors.textLight} />
-              <Text style={styles.emptyText}>No hay turnos de peluquería para esta fecha.</Text>
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'No se encontraron turnos con esa búsqueda.' : 'No hay turnos de peluquería para esta fecha.'}
+              </Text>
             </Card>
           ) : (
             filteredAppointments.map((app) => {
@@ -413,7 +528,7 @@ export const GroomingHubScreen: React.FC = () => {
       )}
 
       {/* ============================================================ */}
-      {/* MODAL 1: HISTORIAL DE LA MASCOTA */}
+      {/* MODAL 1: HISTORIAL DE LA MASCOTA Y BÚSQUEDA DENTRO */}
       {/* ============================================================ */}
       <Modal visible={!!selectedPet} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -430,6 +545,16 @@ export const GroomingHubScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
+            {/* Buscador dentro del historial */}
+            <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+              <Input
+                placeholder="🔍 Buscar en el historial (ej: shampoo, nudos, raza)..."
+                value={historySearchQuery}
+                onChangeText={setHistorySearchQuery}
+                containerStyle={{ marginBottom: 0 }}
+              />
+            </View>
+
             {/* History Tabs */}
             <View style={styles.historyTabRow}>
               <TouchableOpacity
@@ -437,7 +562,7 @@ export const GroomingHubScreen: React.FC = () => {
                 onPress={() => setHistoryTab('grooming')}
               >
                 <Text style={[styles.historyTabText, historyTab === 'grooming' && styles.historyTabTextActive]}>
-                  ✂️ Peluquería ({petGroomingRecords.length})
+                  ✂️ Peluquería ({filteredGroomingRecords.length})
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -445,7 +570,7 @@ export const GroomingHubScreen: React.FC = () => {
                 onPress={() => setHistoryTab('medical')}
               >
                 <Text style={[styles.historyTabText, historyTab === 'medical' && styles.historyTabTextActive]}>
-                  🩺 Historia Clínica ({petMedicalRecords.length})
+                  🩺 Historia Clínica ({filteredMedicalRecords.length})
                 </Text>
               </TouchableOpacity>
             </View>
@@ -457,10 +582,10 @@ export const GroomingHubScreen: React.FC = () => {
             ) : (
               <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
                 {historyTab === 'grooming' ? (
-                  petGroomingRecords.length === 0 ? (
-                    <Text style={styles.emptyText}>No hay registros de peluquería anteriores para {selectedPet?.name}.</Text>
+                  filteredGroomingRecords.length === 0 ? (
+                    <Text style={styles.emptyText}>No hay registros de peluquería que coincidan.</Text>
                   ) : (
-                    petGroomingRecords.map((r) => (
+                    filteredGroomingRecords.map((r) => (
                       <Card key={r.id} variant="outlined" style={styles.recordCard}>
                         <View style={styles.recordHeader}>
                           <Text style={styles.recordDate}>
@@ -485,10 +610,10 @@ export const GroomingHubScreen: React.FC = () => {
                     ))
                   )
                 ) : (
-                  petMedicalRecords.length === 0 ? (
-                    <Text style={styles.emptyText}>No hay consultas médicas registradas para {selectedPet?.name}.</Text>
+                  filteredMedicalRecords.length === 0 ? (
+                    <Text style={styles.emptyText}>No hay consultas médicas que coincidan.</Text>
                   ) : (
-                    petMedicalRecords.map((m) => (
+                    filteredMedicalRecords.map((m) => (
                       <Card key={m.id} variant="outlined" style={styles.recordCard}>
                         <View style={styles.recordHeader}>
                           <Text style={styles.recordDate}>
@@ -555,7 +680,7 @@ export const GroomingHubScreen: React.FC = () => {
               {/* 2. Estilo de Corte Específico */}
               <Text style={styles.formSectionTitle}>2. Estilo de Corte Específico</Text>
               <Input
-                placeholder="Ej: Corte Comercial a tijera, rebajado en lomo y corte higiénico..."
+                placeholder="Ej: Corte Comercial a tijera, rebajado en lomo..."
                 value={haircutStyle}
                 onChangeText={setHaircutStyle}
               />
@@ -599,17 +724,17 @@ export const GroomingHubScreen: React.FC = () => {
                 <Button title="Agregar" size="sm" variant="outline" onPress={addCustomProd} />
               </View>
 
-              {/* 4. Observaciones del Manto y Estado */}
+              {/* 4. Observaciones */}
               <Text style={styles.formSectionTitle}>4. Observaciones & Estado del Manto</Text>
               <Input
-                placeholder="Ej: Nudos leves detrás de las orejas. Piel limpia sin pulgas. Conducta muy dócil..."
+                placeholder="Ej: Nudos leves detrás de orejas. Piel limpia. Conducta muy dócil..."
                 value={observations}
                 onChangeText={setObservations}
                 multiline
                 numberOfLines={3}
               />
 
-              {/* 5. Fotos del Servicio (Antes / Después) */}
+              {/* 5. Fotos del Servicio */}
               <Text style={styles.formSectionTitle}>5. Fotografías del Servicio</Text>
               <View style={styles.photosRow}>
                 {photos.map((ph, idx) => (
@@ -650,6 +775,117 @@ export const GroomingHubScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* ============================================================ */}
+      {/* MODAL 3: AGENDAR NUEVO TURNO DE PELUQUERÍA */}
+      {/* ============================================================ */}
+      <Modal visible={newAppModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Agendar Turno de Peluquería</Text>
+                <Text style={styles.modalSub}>Asignar paciente y servicio de grooming</Text>
+              </View>
+              <TouchableOpacity onPress={() => setNewAppModalVisible(false)} style={styles.closeBtn}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
+              {/* Seleccionar Mascota */}
+              <Text style={styles.formSectionTitle}>1. Mascota del Turno</Text>
+              {newSelectedPet ? (
+                <View style={styles.selectedPetCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.petName}>{newSelectedPet.name}</Text>
+                    <Text style={styles.ownerName}>Raza: {newSelectedPet.breed} • Dueño: {newSelectedPet.ownerName}</Text>
+                  </View>
+                  <Button title="Cambiar" size="sm" variant="ghost" onPress={() => setNewSelectedPet(null)} />
+                </View>
+              ) : (
+                <>
+                  <Input
+                    placeholder="🔍 Buscar paciente por nombre o raza..."
+                    value={newPetSearch}
+                    onChangeText={setNewPetSearch}
+                  />
+                  <ScrollView style={{ maxHeight: 150, marginBottom: spacing.md }}>
+                    {filteredPetsForBooking.slice(0, 6).map((p) => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={styles.petSearchRow}
+                        onPress={() => setNewSelectedPet(p)}
+                      >
+                        <MaterialCommunityIcons name="paw" size={18} color={colors.primaryDark} />
+                        <Text style={styles.petSearchName}>{p.name}</Text>
+                        <Text style={styles.petSearchMeta}>({p.breed || 'Sin raza'})</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Fecha y Hora */}
+              <Text style={styles.formSectionTitle}>2. Fecha y Hora</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                <Input
+                  label="Fecha (AAAA-MM-DD)"
+                  value={newAppDateStr}
+                  onChangeText={setNewAppDateStr}
+                  containerStyle={{ flex: 1 }}
+                />
+                <Input
+                  label="Hora (HH:MM)"
+                  value={newAppTimeStr}
+                  onChangeText={setNewAppTimeStr}
+                  containerStyle={{ flex: 1 }}
+                />
+              </View>
+
+              {/* Servicio */}
+              <Text style={styles.formSectionTitle}>3. Servicio a Realizar</Text>
+              <View style={styles.serviceGrid}>
+                {SERVICE_TYPE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[styles.serviceOption, newAppService === opt.id && styles.serviceOptionActive]}
+                    onPress={() => setNewAppService(opt.id)}
+                  >
+                    <MaterialCommunityIcons
+                      name={opt.icon as any}
+                      size={20}
+                      color={newAppService === opt.id ? colors.primaryDark : colors.textMuted}
+                    />
+                    <Text style={[styles.serviceOptionText, newAppService === opt.id && styles.serviceOptionTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Notas */}
+              <Text style={styles.formSectionTitle}>4. Notas o Solicitudes Especiales</Text>
+              <Input
+                placeholder="Ej: Pedir que sea corte bajito. Trae shampoo propio..."
+                value={newAppNotes}
+                onChangeText={setNewAppNotes}
+                multiline
+              />
+
+              <Button
+                title="Confirmar & Agendar Turno"
+                size="lg"
+                variant="primary"
+                fullWidth
+                style={{ marginTop: spacing.lg }}
+                onPress={handleCreateNewAppointment}
+                loading={creatingApp}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -666,8 +902,7 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
   subtitle: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: spacing.xs },
-  logoutText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.xs, color: colors.danger },
+  logoutBtn: { padding: spacing.xs },
 
   dateBar: {
     flexDirection: 'row',
@@ -811,6 +1046,25 @@ const styles = StyleSheet.create({
   removePhotoBtn: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.danger, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   addPhotoBtn: { width: 72, height: 72, borderRadius: borderRadius.md, borderWidth: 1.5, borderColor: colors.primary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 2 },
   addPhotoText: { fontFamily: fonts.nunito.bold, fontSize: 9, color: colors.primary },
+
+  selectedPetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    backgroundColor: colors.primarySoft,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  petSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  petSearchName: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.sm, color: colors.textDark },
+  petSearchMeta: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.xs, color: colors.textMuted },
 });
 
 export default GroomingHubScreen;
