@@ -295,7 +295,7 @@ export const AdminHubScreen: React.FC<AdminHubScreenProps> = ({ initialTab = 'ca
       </View>
 
       {/* Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.tabsContainer}>
         {tabs.map((t) => (
           <TouchableOpacity
             key={t.id}
@@ -473,7 +473,7 @@ export const AdminHubScreen: React.FC<AdminHubScreenProps> = ({ initialTab = 'ca
             <Button title="Exportar CSV" size="sm" variant="outline" onPress={handleExportOrdersCsv} />
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.orderFilterRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.orderFilterRow}>
             {(['all', 'preparing', 'shipped', 'delivered'] as OrderFilter[]).map((f) => (
               <TouchableOpacity key={f} style={[styles.orderFilterPill, orderFilter === f && styles.orderFilterPillActive]} onPress={() => setOrderFilter(f)}>
                 <Text style={[styles.orderFilterText, orderFilter === f && styles.orderFilterTextActive]}>
@@ -724,8 +724,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md, paddingTop: spacing.md },
   title: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.xl, color: colors.textDark },
   subtitle: { fontFamily: fonts.nunito.regular, fontSize: fontSizes.md, color: colors.textMuted, marginTop: spacing.xs },
-  tabsContainer: { paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md },
-  tab: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
+  tabsContainer: { paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md, alignItems: 'center' },
+  tab: { height: 36, paddingHorizontal: spacing.md, borderRadius: 18, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
   tabActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   tabText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.xs, color: colors.textMuted },
   tabTextActive: { color: colors.primaryDark, fontFamily: fonts.nunito.bold },
@@ -765,8 +765,8 @@ const styles = StyleSheet.create({
   counterText: { fontFamily: fonts.nunito.bold, fontSize: fontSizes.md, color: colors.primaryDark },
   stockNum: { fontFamily: fonts.quicksand.bold, fontSize: fontSizes.md, color: colors.textDark, minWidth: 20, textAlign: 'center' },
   prodActions: { flexDirection: 'row', marginTop: spacing.sm },
-  orderFilterRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md },
-  orderFilterPill: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: 20, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
+  orderFilterRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md, alignItems: 'center', flexGrow: 0 },
+  orderFilterPill: { height: 32, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
   orderFilterPillActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   orderFilterText: { fontFamily: fonts.nunito.semiBold, fontSize: fontSizes.xs, color: colors.textMuted },
   orderFilterTextActive: { color: colors.primaryDark, fontFamily: fonts.nunito.bold },
